@@ -9,10 +9,15 @@ from typing import Optional, List
 API_URL = "http://api:8000"  # Use container name in Docker/Podman
 
 
+AVAILABLE_MODELS = ["mistral:7b", "gpt-oss:20b"]
+
+
 def init_session_state():
     """Initialize session state variables."""
     if "messages" not in st.session_state:
         st.session_state.messages = []  # [{"role": "user"|"assistant", "content": "...", "sources": [...], "chain_of_thought": "..."}]
+    if "selected_model" not in st.session_state:
+        st.session_state.selected_model = AVAILABLE_MODELS[0]
 
 
 def fetch_documents():
@@ -25,7 +30,7 @@ def fetch_documents():
         return []
 
 
-def chat_stream(message: str, conversation_history: List[dict], document_ids: Optional[list] = None):
+def chat_stream(message: str, conversation_history: List[dict], document_ids: Optional[list] = None, model: Optional[str] = None):
     """Stream chat response from API."""
     try:
         history = [{"role": m["role"], "content": m["content"]} for m in conversation_history]
@@ -35,7 +40,8 @@ def chat_stream(message: str, conversation_history: List[dict], document_ids: Op
             json={
                 "message": message,
                 "conversation_history": history,
-                "document_ids": document_ids
+                "document_ids": document_ids,
+                "model": model
             },
             stream=True,
             timeout=300
@@ -76,6 +82,17 @@ def submit_feedback(query_text: str, response_text: str, sources: list,
 def render_sidebar():
     """Render the sidebar with document information."""
     with st.sidebar:
+        # Model selector
+        st.header("Model")
+        st.session_state.selected_model = st.selectbox(
+            "Select LLM",
+            AVAILABLE_MODELS,
+            index=AVAILABLE_MODELS.index(st.session_state.selected_model),
+            label_visibility="collapsed"
+        )
+
+        st.divider()
+
         st.header("📁 Documents")
 
         st.subheader("Available")
@@ -217,7 +234,7 @@ def main():
             # Get history (exclude current message)
             history = st.session_state.messages[:-1]
 
-            for event in chat_stream(prompt, history):
+            for event in chat_stream(prompt, history, model=st.session_state.selected_model):
                 event_type = event.get("type")
                 content = event.get("content")
 

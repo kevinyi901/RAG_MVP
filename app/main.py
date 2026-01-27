@@ -75,6 +75,7 @@ class ChatRequest(BaseModel):
     message: str
     conversation_history: Optional[List[ChatMessage]] = None
     document_ids: Optional[List[int]] = None
+    model: Optional[str] = None  # Override LLM model
 
 
 class QueryResponse(BaseModel):
@@ -242,7 +243,8 @@ async def chat_stream(request: ChatRequest):
             for event in pipeline.chat_streaming(
                 message=request.message,
                 conversation_history=history,
-                document_ids=request.document_ids
+                document_ids=request.document_ids,
+                model_override=request.model
             ):
                 yield f"data: {json.dumps(event)}\n\n"
         except Exception as e:

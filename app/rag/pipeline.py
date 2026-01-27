@@ -278,7 +278,8 @@ User Query: {question}"""
         message: str,
         conversation_history: List[Dict[str, str]] = None,
         document_ids: Optional[List[int]] = None,
-        max_history_tokens: int = 2000
+        max_history_tokens: int = 2000,
+        model_override: Optional[str] = None
     ) -> Generator[Dict[str, Any], None, None]:
         """
         Chat with conversation memory and RAG.
@@ -300,28 +301,43 @@ User Query: {question}"""
 
         # Step 2: Retrieve similar chunks
         total_chunks = self.retriever.get_total_chunks()
-        yield {"type": "status", "content": f"Searching {total_chunks} chunks..."}
-        retrieved_chunks = self.retriever.search(
-            query_embedding,
-            top_k=self.top_k_retrieval,
-            document_ids=document_ids
-        )
-        yield {"type": "status", "content": f"Found {len(retrieved_chunks)} relevant chunks"}
 
-        # Step 3: Rerank with BM25
-        yield {"type": "status", "content": "Re-ranking with BM25..."}
-        reranked_chunks = self.ranker.rerank(
-            message,
-            retrieved_chunks,
-            top_k=self.top_k_rerank
-        )
-        yield {"type": "status", "content": f"Selected top {len(reranked_chunks)} chunks"}
+        # Handle empty database - still generate response without RAG context
+        if total_chunks == 0:
+            yield {"type": "status", "content": "No documents in database - using general knowledge"}
+            yield {"type": "sources", "content": []}
+            reranked_chunks = []
+        else:
+            yield {"type": "status", "content": f"Searching {total_chunks} chunks..."}
+            retrieved_chunks = self.retriever.search(
+                query_embedding,
+                top_k=self.top_k_retrieval,
+                document_ids=document_ids
+            )
 
-        # Send sources
-        yield {"type": "sources", "content": self._format_sources(reranked_chunks)}
+            # Handle no relevant chunks found
+            if not retrieved_chunks:
+                yield {"type": "status", "content": "No relevant documents found - using general knowledge"}
+                yield {"type": "sources", "content": []}
+                reranked_chunks = []
+            else:
+                yield {"type": "status", "content": f"Found {len(retrieved_chunks)} relevant chunks"}
+
+                # Step 3: Rerank with BM25
+                yield {"type": "status", "content": "Re-ranking with BM25..."}
+                reranked_chunks = self.ranker.rerank(
+                    message,
+                    retrieved_chunks,
+                    top_k=self.top_k_rerank
+                )
+                yield {"type": "status", "content": f"Selected top {len(reranked_chunks)} chunks"}
+
+                # Send sources
+                yield {"type": "sources", "content": self._format_sources(reranked_chunks)}
 
         # Step 4: Build chat prompt with history and context
-        yield {"type": "status", "content": "Generating response..."}
+        model_to_use = model_override or self.llm_model
+        yield {"type": "status", "content": f"Generating response with {model_to_use}..."}
         context = self._build_context(reranked_chunks)
         prompt = self._build_chat_prompt(message, context, conversation_history, max_history_tokens)
 
@@ -334,7 +350,7 @@ User Query: {question}"""
                 "POST",
                 f"{self.ollama_host}/api/generate",
                 json={
-                    "model": self.llm_model,
+                    "model": model_to_use,
                     "prompt": prompt,
                     "stream": True
                 }
@@ -392,20 +408,28 @@ User Query: {question}"""
                 history_parts.append(f"{role}: {msg['content']}")
             history_text = "\n\n".join(history_parts)
 
-        prompt = f"""You are a highly knowledgeable military intelligence assistant with expertise in military operations, terminology, protocols, strategy, logistics, and defense policy. You have access to a curated collection of documents and resources relevant to the military domain.
+        prompt = f"""You are a highly knowledgeable military intelligence assistant with expertise in military operations, terminology, protocols, strategy, logistics, and defense policy.
 
-Your task is to answer user questions accurately and thoroughly by combining retrieved information with your own reasoning. Accuracy, operational correctness, and proper context are paramount.
+Your task is to answer user questions accurately and thoroughly. Accuracy, operational correctness, and proper context are paramount.
 
 Guidelines:
-1. Prioritize information from the retrieved documents over general knowledge. Clearly indicate when information is sourced.
-2. Use precise military terminology and acronyms where appropriate, but always ensure clarity.
-3. If the answer is not directly in the documents, reason carefully based on military doctrine and best practices.
-4. Provide concise, actionable, and clear explanations.
-5. If the query is ambiguous, ask clarifying questions before answering.
-6. Include any caveats or assumptions necessary to avoid misinterpretation of military procedures or guidance.
+1. If document context is provided, YOU MUST cite your sources using [Source X] notation (e.g., "According to [Source 1], ...").
+2. When using information from the documents, always include the source reference inline with the relevant statement.
+3. If no document context is available, use your general knowledge but clearly state the response is based on general training data.
+4. Use precise military terminology and acronyms where appropriate, but always ensure clarity.
+5. Provide concise, actionable, and clear explanations.
+6. If the query is ambiguous, ask clarifying questions before answering.
 
-Context from documents:
+"""
+        if context:
+            prompt += f"""Context from documents (cite these using [Source X] notation):
 {context}
+
+IMPORTANT: You must cite sources inline when using information from the documents above.
+
+"""
+        else:
+            prompt += """Note: No relevant documents found. Responding based on general knowledge.
 
 """
         if history_text:

@@ -56,12 +56,16 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        echo "Pulling nomic-embed-text..."
-        curl -X POST http://ollama:11434/api/pull -d '{"name": "nomic-embed-text"}'
+        echo "Pulling mxbai-embed-large..."
+        curl -X POST http://ollama:11434/api/pull -d '{"name": "mxbai-embed-large"}'
         echo ""
-        echo "Pulling gemma2:2b (small model for testing)..."
-        curl -X POST http://ollama:11434/api/pull -d '{"name": "gemma2:2b"}'
+        echo "Pulling mistral:7b..."
+        curl -X POST http://ollama:11434/api/pull -d '{"name": "mistral:7b"}'
         echo ""
+        # Uncomment for production (requires ~14GB VRAM):
+        # echo "Pulling gpt-oss:20b..."
+        # curl -X POST http://ollama:11434/api/pull -d '{"name": "gpt-oss:20b"}'
+        # echo ""
         echo "Models ready!"
     restart: "no"
 
@@ -80,7 +84,7 @@ services:
       - DATABASE_URL=postgresql://rag:rag_password@postgres:5432/ragdb
       - OLLAMA_HOST=http://ollama:11434
       - EMBEDDING_MODEL=mxbai-embed-large
-      - LLM_MODEL=gemma2:2b  # Use gpt-oss:20b for production
+      - LLM_MODEL=mistral:7b  # Use gpt-oss:20b for production
     depends_on:
       postgres:
         condition: service_healthy
