@@ -1,5 +1,6 @@
 """RAG Pipeline orchestration."""
 
+import json
 import httpx
 import os
 from typing import List, Dict, Any, Optional, Generator
@@ -161,7 +162,6 @@ class RAGPipeline:
                 response.raise_for_status()
                 for line in response.iter_lines():
                     if line:
-                        import json
                         data = json.loads(line)
                         if "response" in data:
                             token = data["response"]
@@ -343,7 +343,6 @@ Remember to:
                 response.raise_for_status()
                 for line in response.iter_lines():
                     if line:
-                        import json
                         data = json.loads(line)
                         if "response" in data:
                             token = data["response"]
