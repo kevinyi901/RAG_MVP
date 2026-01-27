@@ -126,8 +126,9 @@ def render_sources(sources: list, key_prefix: str = ""):
             st.caption(" | ".join(info_parts))
 
             st.markdown(
-                f"<div style='background-color: #f0f2f6; padding: 8px; "
-                f"border-radius: 4px; font-size: 0.85em; margin-bottom: 10px;'>"
+                f"<div style='background-color: #1a1f2e; padding: 8px; "
+                f"border-radius: 4px; font-size: 0.85em; margin-bottom: 10px; "
+                f"border: 1px solid #2d3748;'>"
                 f"{source['excerpt']}</div>",
                 unsafe_allow_html=True
             )
