@@ -21,7 +21,8 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # Ollama LLM server with GPU support
+  # Ollama LLM server
+  # Note: Remove 'deploy' section on Mac M2. Add it back for NVIDIA GPU.
   ollama:
     image: ollama/ollama:0.1.23
     container_name: rag-ollama
@@ -31,13 +32,14 @@ services:
       - "11434:11434"
     environment:
       - OLLAMA_HOST=0.0.0.0
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+    # Uncomment for NVIDIA GPU (Linux only):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
       interval: 30s
@@ -58,8 +60,8 @@ services:
         echo "Pulling nomic-embed-text..."
         curl -X POST http://ollama:11434/api/pull -d '{"name": "nomic-embed-text"}'
         echo ""
-        echo "Pulling gpt-oss:20b (this will take a while)..."
-        curl -X POST http://ollama:11434/api/pull -d '{"name": "gpt-oss:20b"}'
+        echo "Pulling gemma2:2b (small model for testing)..."
+        curl -X POST http://ollama:11434/api/pull -d '{"name": "gemma2:2b"}'
         echo ""
         echo "Models ready!"
     restart: "no"
@@ -79,7 +81,7 @@ services:
       - DATABASE_URL=postgresql://rag:rag_password@postgres:5432/ragdb
       - OLLAMA_HOST=http://ollama:11434
       - EMBEDDING_MODEL=nomic-embed-text
-      - LLM_MODEL=gpt-oss:20b
+      - LLM_MODEL=gemma2:2b  # Use gpt-oss:20b for production
     depends_on:
       postgres:
         condition: service_healthy
