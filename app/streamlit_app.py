@@ -144,14 +144,14 @@ def render_chain_of_thought(chain_of_thought: str, key_prefix: str = ""):
     if not chain_of_thought:
         return
 
-    with st.expander("🧠 Reasoning", expanded=False):
+    with st.expander("Reasoning", expanded=False):
         st.markdown(chain_of_thought)
 
 
 def main():
     """Main chat application."""
     st.set_page_config(
-        page_icon="🎯",
+        page_title="JFN AI Co-Pilot",
         layout="wide"
     )
 
@@ -161,7 +161,7 @@ def main():
     render_sidebar()
 
     # Main chat area
-    st.title("🎯 Joint Fires Network AI Co-Pilot")
+    st.title("Joint Fires Network AI Co-Pilot")
     st.caption("Intelligence-driven support for military operations, strategy, and defense policy.")
 
     # Display chat history
@@ -177,9 +177,9 @@ def main():
                     render_chain_of_thought(message["chain_of_thought"], f"hist_{i}")
 
                 # Feedback buttons
-                col1, col2, col3, col4 = st.columns([1, 1, 1, 6])
+                col1, col2, _ = st.columns([1, 1, 7])
                 with col1:
-                    if st.button("👍", key=f"fb_{i}_up", help="Helpful"):
+                    if st.button("👍", key=f"fb_{i}_up"):
                         if i > 0:
                             user_msg = st.session_state.messages[i-1]["content"]
                             submit_feedback(
@@ -190,18 +190,7 @@ def main():
                             )
                             st.toast("Thanks!")
                 with col2:
-                    if st.button("😐", key=f"fb_{i}_mid", help="Neutral"):
-                        if i > 0:
-                            user_msg = st.session_state.messages[i-1]["content"]
-                            submit_feedback(
-                                user_msg, message["content"],
-                                message.get("sources", []),
-                                message.get("chain_of_thought", ""),
-                                "neutral"
-                            )
-                            st.toast("Thanks!")
-                with col3:
-                    if st.button("👎", key=f"fb_{i}_down", help="Not helpful"):
+                    if st.button("👎", key=f"fb_{i}_down"):
                         if i > 0:
                             user_msg = st.session_state.messages[i-1]["content"]
                             submit_feedback(
