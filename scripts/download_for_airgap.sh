@@ -76,8 +76,8 @@ echo "Waiting for Ollama to start..."
 sleep 10
 
 # Pull models
-echo "Pulling nomic-embed-text..."
-${CONTAINER_CMD} exec ollama-temp ollama pull nomic-embed-text
+echo "Pulling mxbai-embed-large..."
+${CONTAINER_CMD} exec ollama-temp ollama pull mxbai-embed-large
 
 echo "Pulling gpt-oss:20b (this may take a while)..."
 ${CONTAINER_CMD} exec ollama-temp ollama pull gpt-oss:20b

@@ -4,7 +4,7 @@ A Retrieval-Augmented Generation (RAG) system designed for air-gapped deployment
 
 ## Features
 
-- **Document Ingestion**: Upload PDF, DOCX, TXT, and Markdown files
+- **Pre-loaded Documents**: System works with documents loaded during deployment
 - **OCR Support**: Process scanned documents using Tesseract
 - **Vector Search**: pgvector for efficient similarity search
 - **BM25 Reranking**: Hybrid retrieval with BM25 scoring
@@ -142,10 +142,9 @@ sudo systemctl enable --now rag-stack
 ### Web Interface
 
 1. Open http://localhost:8501
-2. Upload documents using the sidebar
-3. Wait for processing to complete (chunking + embedding)
-4. Ask questions in the query box
-5. View responses with source citations
+2. View available documents in the sidebar
+3. Ask questions in the query box
+4. View responses with source citations from pre-loaded documents
 
 ### API Endpoints
 
@@ -153,20 +152,15 @@ sudo systemctl enable --now rag-stack
 |----------|--------|-------------|
 | `/health` | GET | System health check |
 | `/api/documents` | GET | List all documents |
-| `/api/documents/upload` | POST | Upload a document |
-| `/api/documents/{id}` | DELETE | Delete a document |
 | `/api/query` | POST | Execute RAG query |
 | `/api/query/stream` | POST | Streaming RAG query |
+| `/api/chat/stream` | POST | Streaming chat with conversation history |
 | `/api/feedback` | POST | Submit user feedback |
 | `/api/stats` | GET | System statistics |
 
 ### Example API Usage
 
 ```bash
-# Upload a document
-curl -X POST http://localhost:8000/api/documents/upload \
-  -F "file=@document.pdf"
-
 # Query the system
 curl -X POST http://localhost:8000/api/query \
   -H "Content-Type: application/json" \
@@ -181,7 +175,7 @@ Environment variables (in `.env`):
 |----------|---------|-------------|
 | `DATABASE_URL` | postgresql://... | PostgreSQL connection string |
 | `OLLAMA_HOST` | http://ollama:11434 | Ollama API endpoint |
-| `EMBEDDING_MODEL` | nomic-embed-text | Embedding model name |
+| `EMBEDDING_MODEL` | mxbai-embed-large | Embedding model name |
 | `LLM_MODEL` | gpt-oss:20b | LLM model name |
 | `CHUNK_SIZE` | 512 | Tokens per chunk |
 | `CHUNK_OVERLAP` | 50 | Overlap tokens between chunks |
@@ -225,12 +219,12 @@ To swap models, edit `.env` and modify `LLM_MODEL` and/or `EMBEDDING_MODEL`, the
 
 | Model | VRAM | Dimensions | Notes |
 |-------|------|------------|-------|
-| nomic-embed-text | ~0.5GB | 768 | Default |
-| mxbai-embed-large | ~0.7GB | 1024 | Higher quality |
+| mxbai-embed-large | ~0.7GB | 1024 | **Default - Higher quality** |
+| nomic-embed-text | ~0.5GB | 768 | Good baseline |
 | all-minilm | ~0.2GB | 384 | Fastest |
 
 **Note:** If you change embedding dimensions, you must:
-1. Update `init.sql` to match: `VECTOR(768)` → `VECTOR(1024)`
+1. Update `init.sql` to match: `VECTOR(1024)` → `VECTOR(new_dimensions)`
 2. Re-ingest all documents (embeddings are dimension-specific)
 
 ### Air-Gap Model Selection
@@ -239,7 +233,7 @@ To include different models in your air-gap bundle, edit `scripts/download_for_a
 
 ```bash
 # Change these lines to your preferred models
-ollama pull nomic-embed-text      # embedding model
+ollama pull mxbai-embed-large      # embedding model
 ollama pull gpt-oss:20b           # LLM model
 ollama pull mistral:7b            # additional model (optional)
 ```

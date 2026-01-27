@@ -5,7 +5,7 @@ import json
 from typing import List, Optional
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -14,7 +14,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from rag import EmbeddingService, Retriever, BM25Ranker, RAGPipeline
-from utils import DocumentLoader, TextChunker
 
 
 # Global instances
@@ -22,14 +21,12 @@ embedding_service: EmbeddingService = None
 retriever: Retriever = None
 ranker: BM25Ranker = None
 pipeline: RAGPipeline = None
-document_loader: DocumentLoader = None
-chunker: TextChunker = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize and cleanup resources."""
-    global embedding_service, retriever, ranker, pipeline, document_loader, chunker
+    global embedding_service, retriever, ranker, pipeline
 
     embedding_service = EmbeddingService()
     retriever = Retriever()
@@ -39,8 +36,6 @@ async def lifespan(app: FastAPI):
         retriever=retriever,
         ranker=ranker
     )
-    document_loader = DocumentLoader(ocr_enabled=True)
-    chunker = TextChunker()
 
     yield
 
@@ -154,68 +149,6 @@ async def health_check():
 
 
 # Document endpoints
-@app.post("/api/documents/upload", response_model=DocumentResponse)
-async def upload_document(file: UploadFile = File(...)):
-    """Upload and process a document."""
-    # Validate file type
-    filename = file.filename
-    extension = os.path.splitext(filename)[1].lower()
-
-    if extension not in DocumentLoader.SUPPORTED_EXTENSIONS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported file type: {extension}. Supported: {DocumentLoader.SUPPORTED_EXTENSIONS}"
-        )
-
-    # Read file content
-    content = await file.read()
-
-    try:
-        # Load document
-        doc = document_loader.load_bytes(content, filename)
-
-        # Store document record
-        doc_id = retriever.store_document(
-            filename=doc.filename,
-            file_type=doc.file_type,
-            file_size=doc.file_size,
-            page_count=doc.page_count
-        )
-
-        # Chunk document
-        chunks = chunker.chunk_document(doc.pages)
-
-        # Generate embeddings and store chunks
-        for chunk in chunks:
-            embedding = embedding_service.embed_text(chunk.content)
-            retriever.store_chunk(
-                document_id=doc_id,
-                content=chunk.content,
-                embedding=embedding,
-                chunk_index=chunk.chunk_index,
-                page_number=chunk.page_number,
-                section_title=chunk.section_title,
-                metadata=chunk.metadata
-            )
-
-        # Fetch updated document info
-        docs = retriever.get_all_documents()
-        doc_info = next((d for d in docs if d['id'] == doc_id), None)
-
-        return DocumentResponse(
-            id=doc_id,
-            filename=doc.filename,
-            file_type=doc.file_type,
-            file_size=doc.file_size,
-            page_count=doc.page_count,
-            chunk_count=doc_info['chunk_count'] if doc_info else len(chunks),
-            created_at=str(doc_info['created_at']) if doc_info else ""
-        )
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @app.get("/api/documents", response_model=List[DocumentResponse])
 async def list_documents():
     """List all uploaded documents."""

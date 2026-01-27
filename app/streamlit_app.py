@@ -13,8 +13,6 @@ def init_session_state():
     """Initialize session state variables."""
     if "messages" not in st.session_state:
         st.session_state.messages = []  # [{"role": "user"|"assistant", "content": "...", "sources": [...], "chain_of_thought": "..."}]
-    if "documents" not in st.session_state:
-        st.session_state.documents = []
 
 
 def fetch_documents():
@@ -22,36 +20,9 @@ def fetch_documents():
     try:
         response = requests.get(f"{API_URL}/api/documents", timeout=10)
         response.raise_for_status()
-        st.session_state.documents = response.json()
-    except Exception as e:
-        pass  # Silently fail on startup
-
-
-def upload_document(file):
-    """Upload a document to the API."""
-    try:
-        files = {"file": (file.name, file.getvalue(), file.type)}
-        response = requests.post(
-            f"{API_URL}/api/documents/upload",
-            files=files,
-            timeout=300
-        )
-        response.raise_for_status()
         return response.json()
     except Exception as e:
-        st.error(f"Upload failed: {e}")
-        return None
-
-
-def delete_document(doc_id: int):
-    """Delete a document."""
-    try:
-        response = requests.delete(f"{API_URL}/api/documents/{doc_id}", timeout=10)
-        response.raise_for_status()
-        return True
-    except Exception as e:
-        st.error(f"Delete failed: {e}")
-        return False
+        return []
 
 
 def chat_stream(message: str, conversation_history: List[dict], document_ids: Optional[list] = None):
@@ -103,53 +74,27 @@ def submit_feedback(query_text: str, response_text: str, sources: list,
 
 
 def render_sidebar():
-    """Render the sidebar with document management."""
+    """Render the sidebar with document information."""
     with st.sidebar:
         st.header("📁 Documents")
-
-        # File uploader
-        uploaded_files = st.file_uploader(
-            "Upload Documents",
-            type=["pdf", "txt", "md", "docx"],
-            accept_multiple_files=True,
-            key="file_uploader"
-        )
-
-        if uploaded_files:
-            for file in uploaded_files:
-                with st.spinner(f"Processing {file.name}..."):
-                    result = upload_document(file)
-                    if result:
-                        st.success(f"✓ {file.name} ({result['chunk_count']} chunks)")
-                        fetch_documents()
-
-        st.divider()
 
         # Document list header with refresh
         col1, col2 = st.columns([3, 1])
         with col1:
-            st.subheader("Loaded")
+            st.subheader("Available")
         with col2:
             if st.button("🔄", help="Refresh"):
-                fetch_documents()
                 st.rerun()
 
-        if st.session_state.documents:
-            for doc in st.session_state.documents:
-                col1, col2 = st.columns([4, 1])
-                with col1:
-                    name = doc['filename']
-                    if len(name) > 20:
-                        name = name[:17] + "..."
-                    st.text(f"📄 {name}")
-                    st.caption(f"   {doc['chunk_count']} chunks")
-                with col2:
-                    if st.button("🗑️", key=f"del_{doc['id']}", help="Delete"):
-                        if delete_document(doc['id']):
-                            fetch_documents()
-                            st.rerun()
+        documents = fetch_documents()
+        if documents:
+            for doc in documents:
+                name = doc['filename']
+                if len(name) > 20:
+                    name = name[:17] + "..."
+                st.text(f"📄 {name}")
         else:
-            st.info("No documents uploaded")
+            st.info("No documents available")
 
         st.divider()
 
@@ -206,20 +151,18 @@ def render_chain_of_thought(chain_of_thought: str, key_prefix: str = ""):
 def main():
     """Main chat application."""
     st.set_page_config(
-        page_title="JFN AI Co-Pilot",
         page_icon="🎯",
         layout="wide"
     )
 
     init_session_state()
-    fetch_documents()
 
     # Sidebar
     render_sidebar()
 
     # Main chat area
     st.title("🎯 Joint Fires Network AI Co-Pilot")
-    st.caption("Intelligence-driven targeting support. Ask anything—I've got your six.")
+    st.caption("Intelligence-driven support for military operations, strategy, and defense policy.")
 
     # Display chat history
     for i, message in enumerate(st.session_state.messages):
@@ -270,7 +213,7 @@ def main():
                             st.toast("Thanks!")
 
     # Chat input
-    if prompt := st.chat_input("Enter your query, Commander..."):
+    if prompt := st.chat_input("Enter your query... "):
         # Add user message
         st.session_state.messages.append({"role": "user", "content": prompt})
 

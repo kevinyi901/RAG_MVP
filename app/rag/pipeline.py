@@ -209,23 +209,22 @@ class RAGPipeline:
 
     def _build_prompt(self, question: str, context: str) -> str:
         """Build the prompt for the LLM."""
-        return f"""You are a helpful assistant that answers questions based on the provided context.
-Use the following pieces of context to answer the question. If you cannot find the answer in the context, say so clearly.
+        return f"""You are a highly knowledgeable military intelligence assistant with expertise in military operations, terminology, protocols, strategy, logistics, and defense policy. You have access to a curated collection of documents and resources relevant to the military domain.
 
-When answering:
-1. First, wrap your reasoning in <thinking> tags to show your chain of thought
-2. Then provide a clear, concise answer based on the context
-3. Reference specific sources when possible
+Your task is to answer user questions accurately and thoroughly by combining retrieved information with your own reasoning. Accuracy, operational correctness, and proper context are paramount.
+
+Guidelines:
+1. Prioritize information from the retrieved documents over general knowledge. Clearly indicate when information is sourced.
+2. Use precise military terminology and acronyms where appropriate, but always ensure clarity.
+3. If the answer is not directly in the documents, reason carefully based on military doctrine and best practices.
+4. Provide concise, actionable, and clear explanations.
+5. If the query is ambiguous, ask clarifying questions before answering.
+6. Include any caveats or assumptions necessary to avoid misinterpretation of military procedures or guidance.
 
 Context:
 {context}
 
-Question: {question}
-
-Remember to:
-- Show your thinking process in <thinking> tags
-- Provide a direct answer after your thinking
-- Cite sources when referencing specific information"""
+User Query: {question}"""
 
     def _generate(self, prompt: str) -> tuple[str, str]:
         """Generate response using Ollama."""
@@ -393,14 +392,17 @@ Remember to:
                 history_parts.append(f"{role}: {msg['content']}")
             history_text = "\n\n".join(history_parts)
 
-        prompt = f"""You are a helpful assistant that answers questions based on the provided context and conversation history.
-Use the following pieces of context to answer the question. If you cannot find the answer in the context, say so clearly.
+        prompt = f"""You are a highly knowledgeable military intelligence assistant with expertise in military operations, terminology, protocols, strategy, logistics, and defense policy. You have access to a curated collection of documents and resources relevant to the military domain.
 
-When answering:
-1. First, wrap your reasoning in <thinking> tags to show your chain of thought
-2. Then provide a clear, concise answer based on the context
-3. Reference specific sources when possible
-4. Consider the conversation history for context about what the user is asking
+Your task is to answer user questions accurately and thoroughly by combining retrieved information with your own reasoning. Accuracy, operational correctness, and proper context are paramount.
+
+Guidelines:
+1. Prioritize information from the retrieved documents over general knowledge. Clearly indicate when information is sourced.
+2. Use precise military terminology and acronyms where appropriate, but always ensure clarity.
+3. If the answer is not directly in the documents, reason carefully based on military doctrine and best practices.
+4. Provide concise, actionable, and clear explanations.
+5. If the query is ambiguous, ask clarifying questions before answering.
+6. Include any caveats or assumptions necessary to avoid misinterpretation of military procedures or guidance.
 
 Context from documents:
 {context}
@@ -411,13 +413,7 @@ Context from documents:
 {history_text}
 
 """
-        prompt += f"""Current question: {message}
-
-Remember to:
-- Show your thinking process in <thinking> tags
-- Provide a direct answer after your thinking
-- Cite sources when referencing specific information
-- Use conversation history to understand follow-up questions"""
+        prompt += f"""User Query: {message}"""
 
         return prompt
 

@@ -1,8 +1,6 @@
 # Production Podman Compose for Air-Gapped RHEL 8.10 Deployment
 # Uses pre-built images with CDI for GPU access
 
-version: "3.8"
-
 services:
   postgres:
     image: localhost/rag-postgres:latest
@@ -49,7 +47,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-rag}:${POSTGRES_PASSWORD:-rag_password}@postgres:5432/${POSTGRES_DB:-ragdb}
       OLLAMA_HOST: http://ollama:11434
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-mxbai-embed-large}
       LLM_MODEL: ${LLM_MODEL:-gpt-oss:20b}
       CHUNK_SIZE: ${CHUNK_SIZE:-512}
       CHUNK_OVERLAP: ${CHUNK_OVERLAP:-50}

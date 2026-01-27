@@ -1,0 +1,33 @@
+{
+    "document": {
+        "filename": "military_doctrine.pdf",
+        "file_type": "pdf",
+        "file_size": 245760,
+        "page_count": 15
+    },
+    "chunks": [
+        {
+            "content": "Military doctrine emphasizes the importance of intelligence gathering and analysis in modern warfare. Intelligence drives decision-making at all levels of command.",
+            "embedding": [0.123, 0.456, 0.789, 0.234, 0.567, 0.890, 0.111, 0.222],
+            "chunk_index": 0,
+            "page_number": 1,
+            "section_title": "Introduction to Military Intelligence",
+            "metadata": {
+                "source": "FM 2-0 Intelligence",
+                "classification": "UNCLASSIFIED"
+            }
+        },
+        {
+            "content": "The intelligence cycle consists of planning, collection, processing, analysis, and dissemination. Each phase is critical for operational success.",
+            "embedding": [0.321, 0.654, 0.987, 0.345, 0.678, 0.901, 0.112, 0.223],
+            "chunk_index": 1,
+            "page_number": 2,
+            "section_title": "Intelligence Cycle",
+            "metadata": {
+                "source": "FM 2-0 Intelligence",
+                "classification": "UNCLASSIFIED"
+            }
+        }
+    ]
+}</content>
+<parameter name="filePath">/Users/kevinyi/Documents/GitHub/RAG_MVP/example_embedding_data.json
