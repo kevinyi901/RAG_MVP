@@ -1,0 +1,36 @@
+# RAG MVP Dependencies
+# Python 3.10.x
+
+# Web frameworks
+fastapi==0.109.2
+uvicorn==0.27.1
+streamlit==1.31.1
+
+# Database
+psycopg2-binary==2.9.9
+pgvector==0.2.5
+
+# HTTP client for Ollama
+httpx==0.26.0
+
+# Document processing
+pypdf==4.0.2
+python-docx==1.1.0
+python-multipart==0.0.9
+
+# OCR support
+pytesseract==0.3.10
+pdf2image==1.17.0
+Pillow==10.2.0
+
+# Text processing and chunking
+tiktoken==0.6.0
+
+# BM25 ranking
+rank-bm25==0.2.2
+
+# Utilities
+python-dotenv==1.0.1
+pydantic==2.6.1
+pydantic-settings==2.1.0
+numpy==1.26.4

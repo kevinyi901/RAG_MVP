@@ -1,0 +1,24 @@
+# Ollama container with pre-loaded models for air-gapped deployment
+# Models are baked into the image for offline use
+
+FROM ollama/ollama:0.1.23
+
+# Set environment for model storage
+ENV OLLAMA_MODELS=/root/.ollama/models
+
+# Create model directory
+RUN mkdir -p /root/.ollama/models
+
+# Note: Models are pulled during build on a connected machine
+# The download_for_airgap.sh script handles model download
+# and the models are copied into the image during export
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:11434/api/tags || exit 1
+
+# Expose Ollama API port
+EXPOSE 11434
+
+# Default command
+CMD ["serve"]
