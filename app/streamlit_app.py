@@ -206,8 +206,8 @@ def render_chain_of_thought(chain_of_thought: str, key_prefix: str = ""):
 def main():
     """Main chat application."""
     st.set_page_config(
-        page_title="RAG Chat",
-        page_icon="💬",
+        page_title="JFN AI Co-Pilot",
+        page_icon="🎯",
         layout="wide"
     )
 
@@ -218,8 +218,8 @@ def main():
     render_sidebar()
 
     # Main chat area
-    st.title("💬 RAG Chat")
-    st.caption("Ask questions about your documents. I remember our conversation.")
+    st.title("🎯 Joint Fires Network AI Co-Pilot")
+    st.caption("Intelligence-driven targeting support. Ask anything—I've got your six.")
 
     # Display chat history
     for i, message in enumerate(st.session_state.messages):
@@ -270,7 +270,7 @@ def main():
                             st.toast("Thanks!")
 
     # Chat input
-    if prompt := st.chat_input("Ask a question about your documents..."):
+    if prompt := st.chat_input("Enter your query, Commander..."):
         # Add user message
         st.session_state.messages.append({"role": "user", "content": prompt})
 

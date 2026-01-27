@@ -1,7 +1,8 @@
 """Vector retrieval using pgvector."""
 
+import json
 import psycopg2
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import RealDictCursor, Json
 from typing import List, Dict, Any, Optional
 import os
 
@@ -133,7 +134,7 @@ class Retriever:
                 RETURNING id
                 """,
                 (document_id, content, embedding_str, chunk_index,
-                 page_number, section_title, metadata or {})
+                 page_number, section_title, Json(metadata) if metadata else None)
             )
             chunk_id = cur.fetchone()[0]
             self.conn.commit()
