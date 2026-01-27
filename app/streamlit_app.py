@@ -78,13 +78,7 @@ def render_sidebar():
     with st.sidebar:
         st.header("📁 Documents")
 
-        # Document list header with refresh
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.subheader("Available")
-        with col2:
-            if st.button("🔄", help="Refresh"):
-                st.rerun()
+        st.subheader("Available")
 
         documents = fetch_documents()
         if documents:
