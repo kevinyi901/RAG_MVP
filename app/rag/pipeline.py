@@ -323,12 +323,14 @@ User Query: {question}"""
             else:
                 yield {"type": "status", "content": f"Found {len(retrieved_chunks)} relevant chunks"}
 
-                # Step 3: Rerank with BM25
-                yield {"type": "status", "content": "Re-ranking with BM25..."}
-                reranked_chunks = self.ranker.rerank(
+                # Step 3: Hybrid rerank (vector + BM25)
+                yield {"type": "status", "content": "Hybrid re-ranking..."}
+                reranked_chunks = self.ranker.hybrid_rerank(
                     message,
                     retrieved_chunks,
-                    top_k=self.top_k_rerank
+                    top_k=self.top_k_rerank,
+                    vector_weight=0.4,
+                    bm25_weight=0.6
                 )
                 yield {"type": "status", "content": f"Selected top {len(reranked_chunks)} chunks"}
 
