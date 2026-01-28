@@ -170,7 +170,6 @@ THINKING_PHRASES = [
     "Weighing sources",
     "Synthesizing information",
     "Formulating response",
-    "Checking consistency",
     "Generating answer",
 ]
 
