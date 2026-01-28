@@ -1,6 +1,6 @@
 """Utility modules for document processing."""
 
-from .document_loader import DocumentLoader
-from .chunker import TextChunker
+from .document_loader import DocumentLoader, EnhancedDocumentLoader
+from .chunker import TextChunker, SemanticChunker
 
-__all__ = ["DocumentLoader", "TextChunker"]
+__all__ = ["DocumentLoader", "EnhancedDocumentLoader", "TextChunker", "SemanticChunker"]

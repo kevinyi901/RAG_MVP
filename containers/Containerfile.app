@@ -1,5 +1,5 @@
 # Containerfile for RAG Application
-# Base: Python 3.10 with OCR support
+# Base: Python 3.10 with OCR and table extraction support
 
 FROM python:3.10.14-slim
 
@@ -9,7 +9,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Install system dependencies for OCR and PDF processing
+# Install system dependencies for OCR, PDF processing, and table extraction
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr \
     tesseract-ocr-eng \
@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     gcc \
     curl \
+    default-jre-headless \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory

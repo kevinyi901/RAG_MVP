@@ -5,7 +5,7 @@ import json
 from typing import List, Optional
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from rag import EmbeddingService, Retriever, BM25Ranker, RAGPipeline
+from utils import DocumentLoader, EnhancedDocumentLoader, TextChunker, SemanticChunker
 
 
 # Global instances
@@ -181,6 +182,87 @@ async def delete_document(document_id: int):
         return {"status": "deleted", "document_id": document_id}
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/documents/upload")
+async def upload_document(
+    file: UploadFile = File(...),
+    use_ocr: bool = Query(True, description="Enable OCR for scanned documents"),
+    extract_tables: bool = Query(True, description="Extract tables from PDFs"),
+    use_semantic_chunking: bool = Query(False, description="Use AI for semantic chunking"),
+    model: Optional[str] = Query(None, description="LLM model for semantic chunking")
+):
+    """Upload and process a document with configurable options."""
+    try:
+        # Read file content
+        content = await file.read()
+        filename = file.filename
+
+        # Choose loader based on options
+        if extract_tables or use_ocr:
+            loader = EnhancedDocumentLoader(
+                ocr_enabled=use_ocr,
+                extract_tables=extract_tables
+            )
+        else:
+            loader = DocumentLoader(ocr_enabled=use_ocr)
+
+        doc = loader.load_bytes(content, filename)
+
+        # Store document metadata
+        document_id = retriever.store_document(
+            filename=doc.filename,
+            file_type=doc.file_type,
+            file_size=doc.file_size,
+            page_count=doc.page_count
+        )
+
+        # Choose chunker based on options
+        if use_semantic_chunking:
+            chunker = SemanticChunker(model=model or os.getenv("LLM_MODEL", "mistral:7b"))
+            chunks = []
+            for page in doc.pages:
+                page_chunks = chunker.chunk_with_ai(
+                    text=page.get('content', ''),
+                    page_number=page.get('page_number'),
+                    section_title=page.get('section_title')
+                )
+                chunks.extend(page_chunks)
+            # Re-index chunks
+            for i, chunk in enumerate(chunks):
+                chunk.chunk_index = i
+        else:
+            chunker = TextChunker()
+            chunks = chunker.chunk_document(doc.pages)
+
+        # Embed and store each chunk
+        for chunk in chunks:
+            embedding = embedding_service.embed_text(chunk.content)
+            retriever.store_chunk(
+                document_id=document_id,
+                content=chunk.content,
+                embedding=embedding,
+                chunk_index=chunk.chunk_index,
+                page_number=chunk.page_number,
+                section_title=chunk.section_title,
+                metadata=chunk.metadata
+            )
+
+        return {
+            "status": "success",
+            "document_id": document_id,
+            "filename": filename,
+            "chunk_count": len(chunks),
+            "options": {
+                "ocr": use_ocr,
+                "tables": extract_tables,
+                "semantic_chunking": use_semantic_chunking
+            }
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

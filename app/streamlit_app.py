@@ -22,6 +22,8 @@ def init_session_state():
         st.session_state.selected_model = AVAILABLE_MODELS[0]
     if "pinned_message" not in st.session_state:
         st.session_state.pinned_message = None
+    if "stop_generation" not in st.session_state:
+        st.session_state.stop_generation = False
 
 # -------------------------------------------------------------------
 # API helpers
@@ -33,6 +35,37 @@ def fetch_documents():
         return r.json()
     except Exception:
         return []
+
+
+def upload_document(file, use_ocr=True, extract_tables=True, use_semantic=False):
+    """Upload a document to the API with options."""
+    try:
+        files = {"file": (file.name, file.getvalue(), file.type)}
+        params = {
+            "use_ocr": use_ocr,
+            "extract_tables": extract_tables,
+            "use_semantic_chunking": use_semantic
+        }
+        r = requests.post(
+            f"{API_URL}/api/documents/upload",
+            files=files,
+            params=params,
+            timeout=300  # Longer timeout for semantic chunking
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def delete_document(doc_id):
+    """Delete a document from the API."""
+    try:
+        r = requests.delete(f"{API_URL}/api/documents/{doc_id}", timeout=10)
+        r.raise_for_status()
+        return True
+    except Exception:
+        return False
 
 def chat_stream(message, history, model):
     try:
@@ -68,12 +101,50 @@ def render_sidebar():
         st.selectbox("Model", AVAILABLE_MODELS, key="selected_model")
 
         st.divider()
+
+        # Document upload section
         st.header("📁 Documents")
 
+        with st.expander("➕ Add Document", expanded=False):
+            uploaded_file = st.file_uploader(
+                "Upload",
+                type=["pdf", "txt", "md", "docx"],
+                label_visibility="collapsed",
+                key="doc_uploader"
+            )
+            if uploaded_file:
+                st.caption("Options:")
+                use_ocr = st.checkbox("OCR (scanned docs)", value=True, key="opt_ocr")
+                extract_tables = st.checkbox("Extract tables", value=True, key="opt_tables")
+                use_semantic = st.checkbox("AI chunking", value=False, key="opt_semantic",
+                                          help="Slower but better boundaries")
+
+                if st.button("Upload", key="upload_confirm"):
+                    with st.spinner("Processing..." + (" (AI chunking)" if use_semantic else "")):
+                        result = upload_document(
+                            uploaded_file,
+                            use_ocr=use_ocr,
+                            extract_tables=extract_tables,
+                            use_semantic=use_semantic
+                        )
+                        if "error" in result:
+                            st.error(result["error"])
+                        else:
+                            st.success(f"Added {result['chunk_count']} chunks")
+                            st.rerun()
+
+        # Document list with delete buttons
         docs = fetch_documents()
         if docs:
             for d in docs:
-                st.text(f"📄 {d['filename'][:20]}")
+                col1, col2 = st.columns([4, 1])
+                with col1:
+                    name = d['filename'][:18] + "..." if len(d['filename']) > 18 else d['filename']
+                    st.caption(f"📄 {name}")
+                with col2:
+                    if st.button("✕", key=f"del_{d['id']}", help="Remove"):
+                        if delete_document(d['id']):
+                            st.rerun()
         else:
             st.info("No documents")
 
@@ -99,7 +170,7 @@ THINKING_PHRASES = [
 ]
 
 def thinking_text():
-    dots = ["", ".", "..", "..."]
+    dots = ["",  "..", "..."]
     return f"*{random.choice(THINKING_PHRASES)}{random.choice(dots)}*"
 
 # -------------------------------------------------------------------
@@ -112,17 +183,18 @@ def render_with_citations(text, sources):
 
     st.markdown(text)
 
-    cols = st.columns(len(sources))
-    for i, source in enumerate(sources):
-        with cols[i]:
-            with st.popover(f"[{i+1}]"):
-                st.markdown(f"**{source['document']}**")
+    if sources:
+        with st.expander(f"Sources ({len(sources)})", expanded=False):
+            for i, source in enumerate(sources):
+                st.markdown(f"**[{i+1}] {source['document']}**")
                 st.caption(
                     f"Section: {source.get('section','N/A')} | "
                     f"Page: {source.get('page','?')} | "
                     f"Relevance: {source['relevance']}%"
                 )
                 st.markdown(source["excerpt"])
+                if i < len(sources) - 1:
+                    st.divider()
 
 # -------------------------------------------------------------------
 # Main App
@@ -170,9 +242,16 @@ def main():
 
     if prompt:
         st.session_state.messages.append({"role": "user", "content": prompt})
+        st.session_state.stop_generation = False
 
         with st.chat_message("assistant"):
-            status = st.empty()
+            # Create layout with stop button
+            status_col, stop_col = st.columns([6, 1])
+            with status_col:
+                status = st.empty()
+            with stop_col:
+                stop_btn = st.empty()
+
             output = st.empty()
 
             full = ""
@@ -180,11 +259,21 @@ def main():
             history = st.session_state.messages[:-1]
             first_token = False
             last_tick = time.time()
+            stopped = False
+
+            # Show stop button during generation
+            if stop_btn.button("⏹", help="Stop generation", key="stop_gen"):
+                st.session_state.stop_generation = True
 
             # ---------------------------------------------------
             # Stream the response with inline thinking animation
             # ---------------------------------------------------
             for event in chat_stream(prompt, history, st.session_state.selected_model):
+                # Check if stop was requested
+                if st.session_state.stop_generation:
+                    stopped = True
+                    break
+
                 # Animate "thinking" every 0.3s until first token
                 if not first_token and time.time() - last_tick > 0.3:
                     status.markdown(thinking_text())
@@ -213,6 +302,14 @@ def main():
                     output.error(content)
                     break
 
+            # Clear stop button and status
+            stop_btn.empty()
+            status.empty()
+
+            if stopped:
+                full += "\n\n*[Generation stopped]*"
+                output.markdown(full)
+
             # Save assistant message
             st.session_state.messages.append({
                 "role": "assistant",
@@ -220,15 +317,7 @@ def main():
                 "sources": sources,
             })
 
-            # Auto-scroll to bottom
-            st.markdown(
-                "<div id='scroll'></div>"
-                "<script>"
-                "document.getElementById('scroll').scrollIntoView();"
-                "</script>",
-                unsafe_allow_html=True,
-            )
-
+            st.session_state.stop_generation = False
             st.rerun()
 
 
