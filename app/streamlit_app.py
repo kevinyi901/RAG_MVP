@@ -229,14 +229,18 @@ def main():
             if msg["role"] == "assistant":
                 render_with_citations(msg["content"], msg.get("sources", []))
 
-                col1, col2, _ = st.columns([1, 1, 8])
+                col1, col2, col3, _ = st.columns([1, 1, 1, 7])
                 with col1:
                     if st.button("📌", key=f"pin_{i}"):
                         st.session_state.pinned_message = i
                         st.toast("Pinned")
                         st.rerun()
                 with col2:
-                    st.caption("")
+                    if st.button("👍", key=f"up_{i}"):
+                        st.toast("Thanks for the feedback!")
+                with col3:
+                    if st.button("👎", key=f"down_{i}"):
+                        st.toast("Thanks for the feedback!")
             else:
                 st.markdown(msg["content"])
 
