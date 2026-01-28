@@ -1,9 +1,9 @@
 """Streamlit chat frontend for RAG system with pinning + citations."""
-
 import streamlit as st
 import requests
 import json
 import time
+import random
 from typing import Optional, List
 
 # -------------------------------------------------------------------
@@ -23,7 +23,6 @@ def init_session_state():
     if "pinned_message" not in st.session_state:
         st.session_state.pinned_message = None
 
-
 # -------------------------------------------------------------------
 # API helpers
 # -------------------------------------------------------------------
@@ -34,7 +33,6 @@ def fetch_documents():
         return r.json()
     except Exception:
         return []
-
 
 def chat_stream(message, history, model):
     try:
@@ -61,7 +59,6 @@ def chat_stream(message, history, model):
     except Exception as e:
         yield {"type": "error", "content": str(e)}
 
-
 # -------------------------------------------------------------------
 # Sidebar
 # -------------------------------------------------------------------
@@ -86,9 +83,27 @@ def render_sidebar():
             st.session_state.pinned_message = None
             st.rerun()
 
+# -------------------------------------------------------------------
+# Thinking animation phrases
+# -------------------------------------------------------------------
+THINKING_PHRASES = [
+    "Thinking",
+    "Reasoning",
+    "Connecting ideas",
+    "Reviewing context",
+    "Weighing sources",
+    "Synthesizing information",
+    "Formulating response",
+    "Checking consistency",
+    "Generating answer",
+]
+
+def thinking_text():
+    dots = ["", ".", "..", "..."]
+    return f"*{random.choice(THINKING_PHRASES)}{random.choice(dots)}*"
 
 # -------------------------------------------------------------------
-# Citations (inline overlay)
+# Citations overlay
 # -------------------------------------------------------------------
 def render_with_citations(text, sources):
     if not sources:
@@ -109,7 +124,6 @@ def render_with_citations(text, sources):
                 )
                 st.markdown(source["excerpt"])
 
-
 # -------------------------------------------------------------------
 # Main App
 # -------------------------------------------------------------------
@@ -128,9 +142,7 @@ def main():
         msg = st.session_state.messages[st.session_state.pinned_message]
         with st.container(border=True):
             st.markdown("📌 **Pinned Answer**")
-            render_with_citations(
-                msg["content"], msg.get("sources", [])
-            )
+            render_with_citations(msg["content"], msg.get("sources", []))
 
     # ---------------------------------------------------------------
     # Chat history
@@ -148,7 +160,6 @@ def main():
                         st.rerun()
                 with col2:
                     st.caption("")
-
             else:
                 st.markdown(msg["content"])
 
@@ -158,62 +169,58 @@ def main():
     prompt = st.chat_input("Enter your query...")
 
     if prompt:
-        st.session_state.messages.append(
-            {"role": "user", "content": prompt}
-        )
+        st.session_state.messages.append({"role": "user", "content": prompt})
 
         with st.chat_message("assistant"):
             status = st.empty()
             output = st.empty()
 
-            thinking = ["Thinking.", "Thinking..", "Thinking..."]
-            idx = 0
-
             full = ""
             sources = []
-
             history = st.session_state.messages[:-1]
+            first_token = False
+            last_tick = time.time()
 
-            for event in chat_stream(
-                prompt, history, st.session_state.selected_model
-            ):
-                # Thinking animation
-                if not full:
-                    status.markdown(thinking[idx % 3])
-                    idx += 1
-                    time.sleep(0.2)
+            # ---------------------------------------------------
+            # Stream the response with inline thinking animation
+            # ---------------------------------------------------
+            for event in chat_stream(prompt, history, st.session_state.selected_model):
+                # Animate "thinking" every 0.3s until first token
+                if not first_token and time.time() - last_tick > 0.3:
+                    status.markdown(thinking_text())
+                    last_tick = time.time()
 
-                t = event.get("type")
-                c = event.get("content")
+                event_type = event.get("type")
+                content = event.get("content")
 
-                if t == "chunk":
+                if event_type == "chunk":
+                    first_token = True
                     status.empty()
-                    full += c
+                    full += content
                     output.markdown(full + "▌")
 
-                elif t == "sources":
-                    sources = c
+                elif event_type == "sources":
+                    sources = content
 
-                elif t == "done":
+                elif event_type == "done":
                     status.empty()
-                    if isinstance(c, dict):
-                        full = c.get("answer", full)
+                    if isinstance(content, dict):
+                        full = content.get("answer", full)
                     output.markdown(full)
 
-                elif t == "error":
+                elif event_type == "error":
                     status.empty()
-                    output.error(c)
+                    output.error(content)
                     break
 
-            st.session_state.messages.append(
-                {
-                    "role": "assistant",
-                    "content": full,
-                    "sources": sources,
-                }
-            )
+            # Save assistant message
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": full,
+                "sources": sources,
+            })
 
-            # Auto-scroll anchor
+            # Auto-scroll to bottom
             st.markdown(
                 "<div id='scroll'></div>"
                 "<script>"
