@@ -24,7 +24,7 @@ services:
     restart: unless-stopped
 
   ollama:
-    image: ollama/ollama:0.1.23
+    image: ollama/ollama:latest
     container_name: rag-ollama
     # For Podman with NVIDIA, use CDI
     devices:
@@ -36,29 +36,32 @@ services:
     ports:
       - "11434:11434"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-      interval: 30s
-      timeout: 10s
-      start_period: 120s
-      retries: 5
+      test: ["CMD-SHELL", "ollama list || exit 1"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 10
     restart: unless-stopped
 
   # Model initialization - pulls models on first run
   ollama-init:
-    image: ollama/ollama:0.1.23
+    image: curlimages/curl:latest
     container_name: rag-ollama-init
     depends_on:
       ollama:
         condition: service_healthy
-    environment:
-      OLLAMA_HOST: http://ollama:11434
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        echo "Pulling embedding model..."
-        ollama pull nomic-embed-text
-        echo "Pulling LLM model..."
-        ollama pull gpt-oss:20b
+        echo "Pulling nomic-embed-text..."
+        curl -X POST http://ollama:11434/api/pull -d '{"name": "nomic-embed-text"}'
+        echo ""
+        echo "Pulling mistral:7b..."
+        curl -X POST http://ollama:11434/api/pull -d '{"name": "mistral:7b"}'
+        echo ""
+        echo "Pulling gpt-oss:20b..."
+        curl -X POST http://ollama:11434/api/pull -d '{"name": "gpt-oss:20b"}'
+        echo ""
         echo "Models ready!"
     restart: "no"
 
@@ -67,18 +70,14 @@ services:
       context: ..
       dockerfile: containers/Containerfile.app
     container_name: rag-api
-    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-rag}:${POSTGRES_PASSWORD:-rag_password}@postgres:5432/${POSTGRES_DB:-ragdb}
-      OLLAMA_HOST: http://ollama:11434
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
-      LLM_MODEL: ${LLM_MODEL:-gpt-oss:20b}
-      CHUNK_SIZE: ${CHUNK_SIZE:-512}
-      CHUNK_OVERLAP: ${CHUNK_OVERLAP:-50}
-      TOP_K_RETRIEVAL: ${TOP_K_RETRIEVAL:-20}
-      TOP_K_RERANK: ${TOP_K_RERANK:-5}
+      - DATABASE_URL=postgresql://rag:rag_password@postgres:5432/ragdb
+      - OLLAMA_HOST=http://ollama:11434
+      - EMBEDDING_MODEL=nomic-embed-text
+      - LLM_MODEL=mistral:7b  # Use gpt-oss:20b for production
     volumes:
-      - ../app:/app:ro
+      - ../app:/app
     ports:
       - "8000:8000"
     depends_on:
@@ -90,7 +89,6 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
-      start_period: 30s
       retries: 3
     restart: unless-stopped
 
@@ -99,22 +97,22 @@ services:
       context: ..
       dockerfile: containers/Containerfile.app
     container_name: rag-streamlit
-    command: ["streamlit", "run", "streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
-    environment:
-      API_URL: http://api:8000
+    command: streamlit run streamlit_app.py --server.port 8501 --server.address 0.0.0.0
     volumes:
-      - ../app:/app:ro
+      - ../app:/app
     ports:
       - "8501:8501"
+    environment:
+      - API_URL=http://api:8000
+      - OLLAMA_HOST=http://ollama:11434
     depends_on:
       - api
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
     restart: unless-stopped
 
 volumes:
   pgdata:
   ollama_data:
+
+networks:
+  default:
+    name: rag-network

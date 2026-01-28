@@ -3,6 +3,7 @@ import streamlit as st
 import requests
 import json
 import random
+import time
 from typing import Optional, List
 
 # -------------------------------------------------------------------
@@ -273,6 +274,7 @@ def main():
                 st.session_state.stop_generation = True
 
             # Show initial thinking state
+            start_time = time.time()
             status.markdown(f"*{random.choice(THINKING_PHRASES)}...*")
 
             # ---------------------------------------------------
@@ -287,16 +289,19 @@ def main():
                 event_type = event.get("type")
                 content = event.get("content")
 
+                elapsed = time.time() - start_time
+
                 if event_type == "status":
                     if "Generating response" in content:
-                        status.markdown(f"*{random.choice(THINKING_PHRASES)}...*")
+                        status.markdown(f"*{random.choice(THINKING_PHRASES)}...* ({elapsed:.1f}s)")
                     else:
-                        status.markdown(f"*{content}*")
+                        status.markdown(f"*{content}* ({elapsed:.1f}s)")
 
                 elif event_type == "chunk":
                     if not first_token:
                         first_token = True
-                        status.empty()
+                        ttft = time.time() - start_time
+                        status.caption(f"First token in {ttft:.1f}s")
                     full += content
                     output.markdown(full + "▌")
 
