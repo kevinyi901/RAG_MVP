@@ -1,279 +1,226 @@
-"""Streamlit chat frontend for RAG system."""
+"""Streamlit chat frontend for RAG system with pinning + citations."""
 
 import streamlit as st
 import requests
 import json
+import time
 from typing import Optional, List
 
-# Configuration
-API_URL = "http://api:8000"  # Use container name in Docker/Podman
-
-
+# -------------------------------------------------------------------
+# Config
+# -------------------------------------------------------------------
+API_URL = "http://api:8000"
 AVAILABLE_MODELS = ["mistral:7b", "gpt-oss:20b"]
 
-
+# -------------------------------------------------------------------
+# Session State
+# -------------------------------------------------------------------
 def init_session_state():
-    """Initialize session state variables."""
     if "messages" not in st.session_state:
-        st.session_state.messages = []  # [{"role": "user"|"assistant", "content": "...", "sources": [...], "chain_of_thought": "..."}]
+        st.session_state.messages = []
     if "selected_model" not in st.session_state:
         st.session_state.selected_model = AVAILABLE_MODELS[0]
+    if "pinned_message" not in st.session_state:
+        st.session_state.pinned_message = None
 
 
+# -------------------------------------------------------------------
+# API helpers
+# -------------------------------------------------------------------
 def fetch_documents():
-    """Fetch document list from API."""
     try:
-        response = requests.get(f"{API_URL}/api/documents", timeout=10)
-        response.raise_for_status()
-        return response.json()
-    except Exception as e:
+        r = requests.get(f"{API_URL}/api/documents", timeout=10)
+        r.raise_for_status()
+        return r.json()
+    except Exception:
         return []
 
 
-def chat_stream(message: str, conversation_history: List[dict], document_ids: Optional[list] = None, model: Optional[str] = None):
-    """Stream chat response from API."""
+def chat_stream(message, history, model):
     try:
-        history = [{"role": m["role"], "content": m["content"]} for m in conversation_history]
-
-        response = requests.post(
+        payload = {
+            "message": message,
+            "conversation_history": [
+                {"role": m["role"], "content": m["content"]} for m in history
+            ],
+            "model": model,
+        }
+        r = requests.post(
             f"{API_URL}/api/chat/stream",
-            json={
-                "message": message,
-                "conversation_history": history,
-                "document_ids": document_ids,
-                "model": model
-            },
+            json=payload,
             stream=True,
-            timeout=300
+            timeout=300,
         )
-        response.raise_for_status()
+        r.raise_for_status()
 
-        for line in response.iter_lines():
+        for line in r.iter_lines():
             if line:
-                line = line.decode('utf-8')
-                if line.startswith('data: '):
-                    data = json.loads(line[6:])
-                    yield data
+                line = line.decode("utf-8")
+                if line.startswith("data: "):
+                    yield json.loads(line[6:])
     except Exception as e:
         yield {"type": "error", "content": str(e)}
 
 
-def submit_feedback(query_text: str, response_text: str, sources: list,
-                    chain_of_thought: str, feedback: str):
-    """Submit user feedback."""
-    try:
-        response = requests.post(
-            f"{API_URL}/api/feedback",
-            json={
-                "query_text": query_text,
-                "response_text": response_text,
-                "sources": sources,
-                "chain_of_thought": chain_of_thought,
-                "feedback": feedback
-            },
-            timeout=10
-        )
-        response.raise_for_status()
-        return True
-    except Exception:
-        return False
-
-
+# -------------------------------------------------------------------
+# Sidebar
+# -------------------------------------------------------------------
 def render_sidebar():
-    """Render the sidebar with document information."""
     with st.sidebar:
-        # Model selector
-        st.header("Model")
-        st.session_state.selected_model = st.selectbox(
-            "Select LLM",
-            AVAILABLE_MODELS,
-            index=AVAILABLE_MODELS.index(st.session_state.selected_model),
-            label_visibility="collapsed"
-        )
+        st.header("⚙️ Settings")
+        st.selectbox("Model", AVAILABLE_MODELS, key="selected_model")
 
         st.divider()
-
         st.header("📁 Documents")
 
-        st.subheader("Available")
-
-        documents = fetch_documents()
-        if documents:
-            for doc in documents:
-                name = doc['filename']
-                if len(name) > 20:
-                    name = name[:17] + "..."
-                st.text(f"📄 {name}")
+        docs = fetch_documents()
+        if docs:
+            for d in docs:
+                st.text(f"📄 {d['filename'][:20]}")
         else:
-            st.info("No documents available")
+            st.info("No documents")
 
         st.divider()
-
-        # Clear chat
         if st.button("🗑️ Clear Chat", use_container_width=True):
             st.session_state.messages = []
+            st.session_state.pinned_message = None
             st.rerun()
 
-        # Stats
-        st.divider()
-        try:
-            response = requests.get(f"{API_URL}/api/stats", timeout=5)
-            if response.ok:
-                stats = response.json()
-                st.caption(f"📊 {stats['total_documents']} docs | {stats['total_chunks']} chunks")
-        except Exception:
-            st.caption("📊 Connecting...")
 
-
-def render_sources(sources: list, key_prefix: str = ""):
-    """Render sources in an expander."""
+# -------------------------------------------------------------------
+# Citations (inline overlay)
+# -------------------------------------------------------------------
+def render_with_citations(text, sources):
     if not sources:
+        st.markdown(text)
         return
 
-    with st.expander(f"📚 Sources ({len(sources)})", expanded=False):
-        for i, source in enumerate(sources, 1):
-            st.markdown(f"**{i}. {source['document']}**")
+    st.markdown(text)
 
-            info_parts = []
-            if source.get('section') and source['section'] != 'N/A':
-                info_parts.append(f"Section: {source['section']}")
-            if source.get('page'):
-                info_parts.append(f"Page: {source['page']}")
-            info_parts.append(f"Relevance: {source['relevance']}%")
-            st.caption(" | ".join(info_parts))
-
-            st.markdown(
-                f"<div style='background-color: #1a1f2e; padding: 8px; "
-                f"border-radius: 4px; font-size: 0.85em; margin-bottom: 10px; "
-                f"border: 1px solid #2d3748;'>"
-                f"{source['excerpt']}</div>",
-                unsafe_allow_html=True
-            )
+    cols = st.columns(len(sources))
+    for i, source in enumerate(sources):
+        with cols[i]:
+            with st.popover(f"[{i+1}]"):
+                st.markdown(f"**{source['document']}**")
+                st.caption(
+                    f"Section: {source.get('section','N/A')} | "
+                    f"Page: {source.get('page','?')} | "
+                    f"Relevance: {source['relevance']}%"
+                )
+                st.markdown(source["excerpt"])
 
 
-def render_chain_of_thought(chain_of_thought: str, key_prefix: str = ""):
-    """Render chain of thought."""
-    if not chain_of_thought:
-        return
-
-    with st.expander("Reasoning", expanded=False):
-        st.markdown(chain_of_thought)
-
-
+# -------------------------------------------------------------------
+# Main App
+# -------------------------------------------------------------------
 def main():
-    """Main chat application."""
-    st.set_page_config(
-        page_title="JFN AI Co-Pilot",
-        layout="wide"
-    )
-
+    st.set_page_config("JFN AI Co-Pilot", layout="wide")
     init_session_state()
-
-    # Sidebar
     render_sidebar()
 
-    # Main chat area
     st.title("Joint Fires Network AI Co-Pilot")
-    st.caption("Intelligence-driven support for military operations, strategy, and defense policy.")
+    st.caption("Intelligence-driven decision support")
 
-    # Display chat history
-    for i, message in enumerate(st.session_state.messages):
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    # ---------------------------------------------------------------
+    # Pinned message
+    # ---------------------------------------------------------------
+    if st.session_state.pinned_message is not None:
+        msg = st.session_state.messages[st.session_state.pinned_message]
+        with st.container(border=True):
+            st.markdown("📌 **Pinned Answer**")
+            render_with_citations(
+                msg["content"], msg.get("sources", [])
+            )
 
-            # Show sources and reasoning for assistant messages
-            if message["role"] == "assistant":
-                if message.get("sources"):
-                    render_sources(message["sources"], f"hist_{i}")
-                if message.get("chain_of_thought"):
-                    render_chain_of_thought(message["chain_of_thought"], f"hist_{i}")
+    # ---------------------------------------------------------------
+    # Chat history
+    # ---------------------------------------------------------------
+    for i, msg in enumerate(st.session_state.messages):
+        with st.chat_message(msg["role"]):
+            if msg["role"] == "assistant":
+                render_with_citations(msg["content"], msg.get("sources", []))
 
-                # Feedback buttons
-                col1, col2, _ = st.columns([1, 1, 7])
+                col1, col2, _ = st.columns([1, 1, 8])
                 with col1:
-                    if st.button("👍", key=f"fb_{i}_up"):
-                        if i > 0:
-                            user_msg = st.session_state.messages[i-1]["content"]
-                            submit_feedback(
-                                user_msg, message["content"],
-                                message.get("sources", []),
-                                message.get("chain_of_thought", ""),
-                                "helpful"
-                            )
-                            st.toast("Thanks!")
+                    if st.button("📌", key=f"pin_{i}"):
+                        st.session_state.pinned_message = i
+                        st.toast("Pinned")
+                        st.rerun()
                 with col2:
-                    if st.button("👎", key=f"fb_{i}_down"):
-                        if i > 0:
-                            user_msg = st.session_state.messages[i-1]["content"]
-                            submit_feedback(
-                                user_msg, message["content"],
-                                message.get("sources", []),
-                                message.get("chain_of_thought", ""),
-                                "not_helpful"
-                            )
-                            st.toast("Thanks!")
+                    st.caption("")
 
-    # Chat input
-    if prompt := st.chat_input("Enter your query... "):
-        # Add user message
-        st.session_state.messages.append({"role": "user", "content": prompt})
+            else:
+                st.markdown(msg["content"])
 
-        # Display user message
-        with st.chat_message("user"):
-            st.markdown(prompt)
+    # ---------------------------------------------------------------
+    # Chat input (auto-pinned bottom)
+    # ---------------------------------------------------------------
+    prompt = st.chat_input("Enter your query...")
 
-        # Generate response
+    if prompt:
+        st.session_state.messages.append(
+            {"role": "user", "content": prompt}
+        )
+
         with st.chat_message("assistant"):
-            status_placeholder = st.empty()
-            response_placeholder = st.empty()
+            status = st.empty()
+            output = st.empty()
 
-            full_response = ""
+            thinking = ["Thinking.", "Thinking..", "Thinking..."]
+            idx = 0
+
+            full = ""
             sources = []
-            chain_of_thought = ""
 
-            # Get history (exclude current message)
             history = st.session_state.messages[:-1]
 
-            for event in chat_stream(prompt, history, model=st.session_state.selected_model):
-                event_type = event.get("type")
-                content = event.get("content")
+            for event in chat_stream(
+                prompt, history, st.session_state.selected_model
+            ):
+                # Thinking animation
+                if not full:
+                    status.markdown(thinking[idx % 3])
+                    idx += 1
+                    time.sleep(0.2)
 
-                if event_type == "status":
-                    status_placeholder.caption(f"⏳ {content}")
+                t = event.get("type")
+                c = event.get("content")
 
-                elif event_type == "sources":
-                    sources = content
+                if t == "chunk":
+                    status.empty()
+                    full += c
+                    output.markdown(full + "▌")
 
-                elif event_type == "chunk":
-                    full_response += content
-                    response_placeholder.markdown(full_response + "▌")
+                elif t == "sources":
+                    sources = c
 
-                elif event_type == "done":
-                    if isinstance(content, dict):
-                        full_response = content.get("answer", full_response)
-                        chain_of_thought = content.get("chain_of_thought", "")
+                elif t == "done":
+                    status.empty()
+                    if isinstance(c, dict):
+                        full = c.get("answer", full)
+                    output.markdown(full)
 
-                    status_placeholder.empty()
-                    response_placeholder.markdown(full_response)
+                elif t == "error":
+                    status.empty()
+                    output.error(c)
+                    break
 
-                elif event_type == "error":
-                    status_placeholder.empty()
-                    st.error(f"Error: {content}")
-                    full_response = f"Sorry, an error occurred: {content}"
+            st.session_state.messages.append(
+                {
+                    "role": "assistant",
+                    "content": full,
+                    "sources": sources,
+                }
+            )
 
-            # Show sources and reasoning
-            if sources:
-                render_sources(sources, "current")
-            if chain_of_thought:
-                render_chain_of_thought(chain_of_thought, "current")
-
-            # Save to history
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": full_response,
-                "sources": sources,
-                "chain_of_thought": chain_of_thought
-            })
+            # Auto-scroll anchor
+            st.markdown(
+                "<div id='scroll'></div>"
+                "<script>"
+                "document.getElementById('scroll').scrollIntoView();"
+                "</script>",
+                unsafe_allow_html=True,
+            )
 
             st.rerun()
 
