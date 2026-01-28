@@ -2,7 +2,6 @@
 import streamlit as st
 import requests
 import json
-import time
 import random
 from typing import Optional, List
 
@@ -24,6 +23,8 @@ def init_session_state():
         st.session_state.pinned_message = None
     if "stop_generation" not in st.session_state:
         st.session_state.stop_generation = False
+    if "uploaded_doc_ids" not in st.session_state:
+        st.session_state.uploaded_doc_ids = set()
 
 # -------------------------------------------------------------------
 # API helpers
@@ -130,13 +131,16 @@ def render_sidebar():
                         if "error" in result:
                             st.error(result["error"])
                         else:
+                            if "document_id" in result:
+                                st.session_state.uploaded_doc_ids.add(result["document_id"])
                             st.success(f"Added {result['chunk_count']} chunks")
                             st.rerun()
 
-        # Document list with delete buttons
+        # Document list - only show docs uploaded via this UI
         docs = fetch_documents()
-        if docs:
-            for d in docs:
+        ui_docs = [d for d in docs if d['id'] in st.session_state.uploaded_doc_ids]
+        if ui_docs:
+            for d in ui_docs:
                 col1, col2 = st.columns([4, 1])
                 with col1:
                     name = d['filename'][:18] + "..." if len(d['filename']) > 18 else d['filename']
@@ -144,9 +148,10 @@ def render_sidebar():
                 with col2:
                     if st.button("✕", key=f"del_{d['id']}", help="Remove"):
                         if delete_document(d['id']):
+                            st.session_state.uploaded_doc_ids.discard(d['id'])
                             st.rerun()
         else:
-            st.info("No documents")
+            st.caption("No uploaded documents")
 
         st.divider()
         if st.button("🗑️ Clear Chat", use_container_width=True):
@@ -258,15 +263,17 @@ def main():
             sources = []
             history = st.session_state.messages[:-1]
             first_token = False
-            last_tick = time.time()
             stopped = False
 
             # Show stop button during generation
             if stop_btn.button("⏹", help="Stop generation", key="stop_gen"):
                 st.session_state.stop_generation = True
 
+            # Show initial thinking state
+            status.markdown(f"*{random.choice(THINKING_PHRASES)}...*")
+
             # ---------------------------------------------------
-            # Stream the response with inline thinking animation
+            # Stream the response
             # ---------------------------------------------------
             for event in chat_stream(prompt, history, st.session_state.selected_model):
                 # Check if stop was requested
@@ -274,17 +281,16 @@ def main():
                     stopped = True
                     break
 
-                # Animate "thinking" every 0.3s until first token
-                if not first_token and time.time() - last_tick > 0.3:
-                    status.markdown(thinking_text())
-                    last_tick = time.time()
-
                 event_type = event.get("type")
                 content = event.get("content")
 
-                if event_type == "chunk":
-                    first_token = True
-                    status.empty()
+                if event_type == "status":
+                    status.markdown(f"*{content}*")
+
+                elif event_type == "chunk":
+                    if not first_token:
+                        first_token = True
+                        status.empty()
                     full += content
                     output.markdown(full + "▌")
 

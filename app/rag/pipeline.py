@@ -304,7 +304,7 @@ User Query: {question}"""
 
         # Handle empty database - still generate response without RAG context
         if total_chunks == 0:
-            yield {"type": "status", "content": "No documents in database - using general knowledge"}
+            yield {"type": "status", "content": "General‑knowledge explanation – no specific source documents available."}
             yield {"type": "sources", "content": []}
             reranked_chunks = []
         else:
@@ -317,7 +317,7 @@ User Query: {question}"""
 
             # Handle no relevant chunks found
             if not retrieved_chunks:
-                yield {"type": "status", "content": "No relevant documents found - using general knowledge"}
+                yield {"type": "status", "content": "General‑knowledge explanation – no specific source documents available."}
                 yield {"type": "sources", "content": []}
                 reranked_chunks = []
             else:
@@ -332,10 +332,18 @@ User Query: {question}"""
                     vector_weight=0.4,
                     bm25_weight=0.6
                 )
-                yield {"type": "status", "content": f"Selected top {len(reranked_chunks)} chunks"}
 
-                # Send sources
-                yield {"type": "sources", "content": self._format_sources(reranked_chunks)}
+                # Filter out chunks below 30% relevance
+                reranked_chunks = [
+                    c for c in reranked_chunks if c.get('combined_score', 0) >= 0.3
+                ]
+
+                if not reranked_chunks:
+                    yield {"type": "status", "content": "General‑knowledge explanation – no specific source documents available."}
+                    yield {"type": "sources", "content": []}
+                else:
+                    yield {"type": "status", "content": f"Selected {len(reranked_chunks)} chunks above 30% relevance"}
+                    yield {"type": "sources", "content": self._format_sources(reranked_chunks)}
 
         # Step 4: Build chat prompt with history and context
         model_to_use = model_override or self.llm_model
