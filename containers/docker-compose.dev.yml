@@ -62,10 +62,9 @@ services:
         echo "Pulling mistral:7b..."
         curl -X POST http://ollama:11434/api/pull -d '{"name": "mistral:7b"}'
         echo ""
-        # Uncomment for production (requires ~14GB VRAM):
-        # echo "Pulling gpt-oss:20b..."
-        # curl -X POST http://ollama:11434/api/pull -d '{"name": "gpt-oss:20b"}'
-        # echo ""
+        echo "Pulling gpt-oss:20b..."
+        curl -X POST http://ollama:11434/api/pull -d '{"name": "gpt-oss:20b"}'
+        echo ""
         echo "Models ready!"
     restart: "no"
 
