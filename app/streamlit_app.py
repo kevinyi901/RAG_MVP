@@ -289,7 +289,10 @@ def main():
                 content = event.get("content")
 
                 if event_type == "status":
-                    status.markdown(f"*{content}*")
+                    if "Generating response" in content:
+                        status.markdown(f"*{random.choice(THINKING_PHRASES)}...*")
+                    else:
+                        status.markdown(f"*{content}*")
 
                 elif event_type == "chunk":
                     if not first_token:
