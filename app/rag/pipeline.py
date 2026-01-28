@@ -355,36 +355,40 @@ User Query: {question}"""
         chain_of_thought = ""
         in_thinking = False
 
-        with httpx.Client(timeout=300.0) as client:
-            with client.stream(
-                "POST",
-                f"{self.ollama_host}/api/generate",
-                json={
-                    "model": model_to_use,
-                    "prompt": prompt,
-                    "stream": True
-                }
-            ) as response:
-                response.raise_for_status()
-                for line in response.iter_lines():
-                    if line:
-                        data = json.loads(line)
-                        if "response" in data:
-                            token = data["response"]
-                            full_response += token
+        try:
+            with httpx.Client(timeout=300.0) as client:
+                with client.stream(
+                    "POST",
+                    f"{self.ollama_host}/api/generate",
+                    json={
+                        "model": model_to_use,
+                        "prompt": prompt,
+                        "stream": True
+                    }
+                ) as response:
+                    response.raise_for_status()
+                    for line in response.iter_lines():
+                        if line:
+                            data = json.loads(line)
+                            if "response" in data:
+                                token = data["response"]
+                                full_response += token
 
-                            # Track chain of thought
-                            if "<thinking>" in full_response and not in_thinking:
-                                in_thinking = True
-                            if in_thinking:
-                                chain_of_thought += token
-                            if "</thinking>" in full_response:
-                                in_thinking = False
+                                # Track chain of thought
+                                if "<thinking>" in full_response and not in_thinking:
+                                    in_thinking = True
+                                if in_thinking:
+                                    chain_of_thought += token
+                                if "</thinking>" in full_response:
+                                    in_thinking = False
 
-                            yield {"type": "chunk", "content": token}
+                                yield {"type": "chunk", "content": token}
 
-                        if data.get("done", False):
-                            break
+                            if data.get("done", False):
+                                break
+        except Exception as e:
+            yield {"type": "error", "content": f"LLM generation failed: {str(e)}"}
+            return
 
         # Clean up the response
         answer = self._extract_answer(full_response)

@@ -300,7 +300,9 @@ def main():
                 elif event_type == "done":
                     status.empty()
                     if isinstance(content, dict):
-                        full = content.get("answer", full)
+                        cleaned = content.get("answer", "")
+                        if cleaned:
+                            full = cleaned
                     output.markdown(full)
 
                 elif event_type == "error":
