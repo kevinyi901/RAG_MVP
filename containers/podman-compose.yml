@@ -47,7 +47,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-rag}:${POSTGRES_PASSWORD:-rag_password}@postgres:5432/${POSTGRES_DB:-ragdb}
       OLLAMA_HOST: http://ollama:11434
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-mxbai-embed-large}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
       LLM_MODEL: ${LLM_MODEL:-gpt-oss:20b}
       CHUNK_SIZE: ${CHUNK_SIZE:-512}
       CHUNK_OVERLAP: ${CHUNK_OVERLAP:-50}

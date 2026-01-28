@@ -15,7 +15,7 @@ class EmbeddingService:
         timeout: float = 60.0
     ):
         self.ollama_host = ollama_host or os.getenv("OLLAMA_HOST", "http://localhost:11434")
-        self.model = model or os.getenv("EMBEDDING_MODEL", "mxbai-embed-large")
+        self.model = model or os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
         self.timeout = timeout
         self._client = None
 

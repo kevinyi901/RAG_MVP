@@ -56,8 +56,8 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        echo "Pulling mxbai-embed-large..."
-        curl -X POST http://ollama:11434/api/pull -d '{"name": "mxbai-embed-large"}'
+        echo "Pulling nomic-embed-text..."
+        curl -X POST http://ollama:11434/api/pull -d '{"name": "nomic-embed-text"}'
         echo ""
         echo "Pulling mistral:7b..."
         curl -X POST http://ollama:11434/api/pull -d '{"name": "mistral:7b"}'
@@ -82,7 +82,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://rag:rag_password@postgres:5432/ragdb
       - OLLAMA_HOST=http://ollama:11434
-      - EMBEDDING_MODEL=mxbai-embed-large
+      - EMBEDDING_MODEL=nomic-embed-text
       - LLM_MODEL=mistral:7b  # Use gpt-oss:20b for production
     depends_on:
       postgres:

@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS chunks (
     id SERIAL PRIMARY KEY,
     document_id INTEGER REFERENCES documents(id) ON DELETE CASCADE,
     content TEXT NOT NULL,
-    embedding VECTOR(1024),  -- mxbai-embed-large produces 1024-dim vectors
+    embedding VECTOR(768),  -- nomic-embed-text produces 768-dim vectors
     chunk_index INTEGER,
     page_number INTEGER,
     section_title TEXT,

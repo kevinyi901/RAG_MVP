@@ -56,7 +56,7 @@ class EmbeddingInjector:
             "postgresql://rag:rag_password@localhost:5432/ragdb"
         )
         self.ollama_host = ollama_host or os.getenv("OLLAMA_HOST", "http://localhost:11434")
-        self.embedding_model = embedding_model or os.getenv("EMBEDDING_MODEL", "mxbai-embed-large")
+        self.embedding_model = embedding_model or os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
         self.stop_level = stop_level
         self._conn = None
 
