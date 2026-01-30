@@ -20,23 +20,40 @@ services:
       retries: 5
     restart: unless-stopped
 
-  ollama:
-    image: localhost/rag-ollama:latest
-    container_name: rag-ollama
+  vllm:
+    image: localhost/rag-vllm:latest
+    container_name: rag-vllm
     # CDI device for NVIDIA GPU access on Podman
     devices:
       - nvidia.com/gpu=all
-    environment:
-      OLLAMA_HOST: 0.0.0.0
     volumes:
-      - ollama_data:/root/.ollama
+      - vllm_models:/models
     ports:
-      - "11434:11434"
+      - "8000:8000"
+    command: ["--model", "/models/gpt-oss-20b-awq", "--load-format", "awq", "--served-model-name", "gpt-oss:20b", "--host", "0.0.0.0", "--port", "8000"]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
-      start_period: 60s
+      start_period: 120s
+      retries: 3
+    restart: unless-stopped
+
+  vllm-mistral:
+    image: localhost/rag-vllm:latest
+    container_name: rag-vllm-mistral
+    devices:
+      - nvidia.com/gpu=all
+    volumes:
+      - vllm_models:/models
+    ports:
+      - "8002:8000"
+    command: ["--model", "/models/mistral-7b-awq", "--load-format", "awq", "--served-model-name", "mistral:7b", "--host", "0.0.0.0", "--port", "8000"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
       retries: 3
     restart: unless-stopped
 
@@ -46,19 +63,21 @@ services:
     command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-rag}:${POSTGRES_PASSWORD:-rag_password}@postgres:5432/${POSTGRES_DB:-ragdb}
-      OLLAMA_HOST: http://ollama:11434
+      VLLM_HOST: http://vllm:8000
+      VLLM_MODEL_HOSTS: mistral:7b=http://vllm-mistral:8000
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+      EMBEDDING_MODEL_PATH: ${EMBEDDING_MODEL_PATH:-/models/embedding}
       LLM_MODEL: ${LLM_MODEL:-gpt-oss:20b}
-      CHUNK_SIZE: ${CHUNK_SIZE:-512}
-      CHUNK_OVERLAP: ${CHUNK_OVERLAP:-50}
+      CHUNK_SIZE: ${CHUNK_SIZE:-500}
+      CHUNK_OVERLAP: ${CHUNK_OVERLAP:-100}
       TOP_K_RETRIEVAL: ${TOP_K_RETRIEVAL:-20}
       TOP_K_RERANK: ${TOP_K_RERANK:-5}
     ports:
-      - "8000:8000"
+      - "8001:8000"
     depends_on:
       postgres:
         condition: service_healthy
-      ollama:
+      vllm:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -73,7 +92,6 @@ services:
     command: ["streamlit", "run", "streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
     environment:
       API_URL: http://api:8000
-      OLLAMA_HOST: http://ollama:11434
     ports:
       - "8501:8501"
     depends_on:
@@ -87,4 +105,4 @@ services:
 
 volumes:
   pgdata:
-  ollama_data:
+  vllm_models:

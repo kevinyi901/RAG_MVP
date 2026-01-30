@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from .embeddings import EmbeddingService
 from .retriever import Retriever
-from .ranker import BM25Ranker
+from .ranker import SemanticRanker
 
 
 @dataclass
@@ -35,20 +35,41 @@ class RAGPipeline:
         self,
         embedding_service: EmbeddingService = None,
         retriever: Retriever = None,
-        ranker: BM25Ranker = None,
-        ollama_host: str = None,
+        ranker: SemanticRanker = None,
+        vllm_host: str = None,
         llm_model: str = None,
         top_k_retrieval: int = None,
         top_k_rerank: int = None
     ):
         self.embedding_service = embedding_service or EmbeddingService()
         self.retriever = retriever or Retriever()
-        self.ranker = ranker or BM25Ranker()
+        self.ranker = ranker or SemanticRanker()
 
-        self.ollama_host = ollama_host or os.getenv("OLLAMA_HOST", "http://localhost:11434")
+        self.vllm_host = vllm_host or os.getenv("VLLM_HOST", "http://localhost:8000")
         self.llm_model = llm_model or os.getenv("LLM_MODEL", "gpt-oss:20b")
         self.top_k_retrieval = top_k_retrieval or int(os.getenv("TOP_K_RETRIEVAL", "20"))
         self.top_k_rerank = top_k_rerank or int(os.getenv("TOP_K_RERANK", "5"))
+
+        # Model-to-host mapping for multi-model vLLM deployments
+        self._model_hosts = self._build_model_hosts()
+
+    def _build_model_hosts(self) -> Dict[str, str]:
+        """Build mapping of model names to vLLM host URLs."""
+        hosts = {}
+        # Default model uses VLLM_HOST
+        hosts[self.llm_model] = self.vllm_host
+        # Additional models via VLLM_MODEL_HOSTS (format: "model1=host1,model2=host2")
+        extra = os.getenv("VLLM_MODEL_HOSTS", "")
+        for entry in extra.split(","):
+            entry = entry.strip()
+            if "=" in entry:
+                model, host = entry.split("=", 1)
+                hosts[model.strip()] = host.strip()
+        return hosts
+
+    def _get_host_for_model(self, model: str) -> str:
+        """Get the vLLM host URL for a given model name."""
+        return self._model_hosts.get(model, self.vllm_host)
 
     def query(
         self,
@@ -77,7 +98,7 @@ class RAGPipeline:
             document_ids=document_ids
         )
 
-        # Step 3: Rerank with BM25
+        # Step 3: Rank with semantic similarity
         reranked_chunks = self.ranker.rerank(
             question,
             retrieved_chunks,
@@ -152,33 +173,35 @@ class RAGPipeline:
         with httpx.Client(timeout=300.0) as client:
             with client.stream(
                 "POST",
-                f"{self.ollama_host}/api/generate",
+                f"{self._get_host_for_model(self.llm_model)}/v1/completions",
                 json={
                     "model": self.llm_model,
                     "prompt": prompt,
-                    "stream": True
+                    "stream": True,
+                    "max_tokens": 4096
                 }
             ) as response:
                 response.raise_for_status()
                 for line in response.iter_lines():
-                    if line:
-                        data = json.loads(line)
-                        if "response" in data:
-                            token = data["response"]
-                            full_response += token
+                    if not line or not line.startswith("data: "):
+                        continue
+                    data_str = line[len("data: "):]
+                    if data_str.strip() == "[DONE]":
+                        break
+                    data = json.loads(data_str)
+                    token = data["choices"][0].get("text", "")
+                    if token:
+                        full_response += token
 
-                            # Track chain of thought
-                            if "<thinking>" in full_response and not in_thinking:
-                                in_thinking = True
-                            if in_thinking:
-                                chain_of_thought += token
-                            if "</thinking>" in full_response:
-                                in_thinking = False
+                        # Track chain of thought
+                        if "<thinking>" in full_response and not in_thinking:
+                            in_thinking = True
+                        if in_thinking:
+                            chain_of_thought += token
+                        if "</thinking>" in full_response:
+                            in_thinking = False
 
-                            yield {"type": "chunk", "content": token}
-
-                        if data.get("done", False):
-                            break
+                        yield {"type": "chunk", "content": token}
 
         # Clean up the response
         answer = self._extract_answer(full_response)
@@ -227,18 +250,19 @@ Context:
 User Query: {question}"""
 
     def _generate(self, prompt: str) -> tuple[str, str]:
-        """Generate response using Ollama."""
+        """Generate response using vLLM."""
         with httpx.Client(timeout=300.0) as client:
             response = client.post(
-                f"{self.ollama_host}/api/generate",
+                f"{self._get_host_for_model(self.llm_model)}/v1/completions",
                 json={
                     "model": self.llm_model,
                     "prompt": prompt,
-                    "stream": False
+                    "stream": False,
+                    "max_tokens": 4096
                 }
             )
             response.raise_for_status()
-            full_response = response.json()["response"]
+            full_response = response.json()["choices"][0]["text"]
 
         answer = self._extract_answer(full_response)
         chain_of_thought = self._extract_chain_of_thought(full_response)
@@ -304,7 +328,7 @@ User Query: {question}"""
 
         # Handle empty database - still generate response without RAG context
         if total_chunks == 0:
-            yield {"type": "status", "content": "General‑knowledge explanation – no specific source documents available."}
+            yield {"type": "status", "content": "General\u2011knowledge explanation \u2013 no specific source documents available."}
             yield {"type": "sources", "content": []}
             reranked_chunks = []
         else:
@@ -317,7 +341,7 @@ User Query: {question}"""
 
             # Handle no relevant chunks found
             if not retrieved_chunks:
-                yield {"type": "status", "content": "General‑knowledge explanation – no specific source documents available."}
+                yield {"type": "status", "content": "General\u2011knowledge explanation \u2013 no specific source documents available."}
                 yield {"type": "sources", "content": []}
                 reranked_chunks = []
             else:
@@ -339,7 +363,7 @@ User Query: {question}"""
                 ]
 
                 if not reranked_chunks:
-                    yield {"type": "status", "content": "General‑knowledge explanation – no specific source documents available."}
+                    yield {"type": "status", "content": "General\u2011knowledge explanation \u2013 no specific source documents available."}
                     yield {"type": "sources", "content": []}
                 else:
                     yield {"type": "status", "content": f"Selected {len(reranked_chunks)} chunks above 30% relevance"}
@@ -359,33 +383,35 @@ User Query: {question}"""
             with httpx.Client(timeout=300.0) as client:
                 with client.stream(
                     "POST",
-                    f"{self.ollama_host}/api/generate",
+                    f"{self._get_host_for_model(model_to_use)}/v1/completions",
                     json={
                         "model": model_to_use,
                         "prompt": prompt,
-                        "stream": True
+                        "stream": True,
+                        "max_tokens": 4096
                     }
                 ) as response:
                     response.raise_for_status()
                     for line in response.iter_lines():
-                        if line:
-                            data = json.loads(line)
-                            if "response" in data:
-                                token = data["response"]
-                                full_response += token
+                        if not line or not line.startswith("data: "):
+                            continue
+                        data_str = line[len("data: "):]
+                        if data_str.strip() == "[DONE]":
+                            break
+                        data = json.loads(data_str)
+                        token = data["choices"][0].get("text", "")
+                        if token:
+                            full_response += token
 
-                                # Track chain of thought
-                                if "<thinking>" in full_response and not in_thinking:
-                                    in_thinking = True
-                                if in_thinking:
-                                    chain_of_thought += token
-                                if "</thinking>" in full_response:
-                                    in_thinking = False
+                            # Track chain of thought
+                            if "<thinking>" in full_response and not in_thinking:
+                                in_thinking = True
+                            if in_thinking:
+                                chain_of_thought += token
+                            if "</thinking>" in full_response:
+                                in_thinking = False
 
-                                yield {"type": "chunk", "content": token}
-
-                            if data.get("done", False):
-                                break
+                            yield {"type": "chunk", "content": token}
         except Exception as e:
             yield {"type": "error", "content": f"LLM generation failed: {str(e)}"}
             return

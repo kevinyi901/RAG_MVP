@@ -19,17 +19,71 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # Ollama LLM server
-  # Note: Remove 'deploy' section on Mac M2. Add it back for NVIDIA GPU.
-  ollama:
-    image: ollama/ollama:latest
-    container_name: rag-ollama
+  # vLLM LLM server - gpt-oss-20b BF16 (13GB) or AWQ quantized (6GB)
+  vllm:
+    image: vllm/vllm-openai:latest
+    container_name: rag-vllm
     volumes:
-      - ollama_data:/root/.ollama
+      - ../models:/models:ro
     ports:
-      - "11434:11434"
-    environment:
-      - OLLAMA_HOST=0.0.0.0
+      - "8000:8000"
+    # For BF16 (full precision, 13GB):
+    command:
+      - "--model"
+      - "/models/gpt-oss-20b"
+      - "--served-model-name"
+      - "gpt-oss-20b"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8000"
+    # For AWQ quantized (4-bit, 6GB), uncomment below and comment out command above:
+    # command:
+    #   - "--model"
+    #   - "/models/gpt-oss-20b-awq"
+    #   - "--load-format"
+    #   - "awq"
+    #   - "--served-model-name"
+    #   - "gpt-oss-20b"
+    #   - "--host"
+    #   - "0.0.0.0"
+    #   - "--port"
+    #   - "8000"
+    # Uncomment for NVIDIA GPU (Linux/EC2 only):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      start_period: 120s
+      retries: 10
+    restart: unless-stopped
+
+  # vLLM LLM server - mistral:7b-AWQ (quantized, 4-bit)
+  vllm-mistral:
+    image: vllm/vllm-openai:latest
+    container_name: rag-vllm-mistral
+    volumes:
+      - vllm_models:/models
+    ports:
+      - "8002:8000"
+    command:
+      - "--model"
+      - "/models/mistral-7b-awq"
+      - "--load-format"
+      - "awq"
+      - "--served-model-name"
+      - "mistral:7b"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8000"
     # Uncomment for NVIDIA GPU (Linux only):
     # deploy:
     #   resources:
@@ -39,34 +93,12 @@ services:
     #           count: all
     #           capabilities: [gpu]
     healthcheck:
-      test: ["CMD-SHELL", "ollama list || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 10s
       timeout: 5s
-      start_period: 30s
+      start_period: 120s
       retries: 10
     restart: unless-stopped
-
-  # Model initialization - pulls required models on first run
-  ollama-init:
-    image: curlimages/curl:latest
-    container_name: rag-ollama-init
-    depends_on:
-      ollama:
-        condition: service_healthy
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        echo "Pulling nomic-embed-text..."
-        curl -X POST http://ollama:11434/api/pull -d '{"name": "nomic-embed-text"}'
-        echo ""
-        echo "Pulling mistral:7b..."
-        curl -X POST http://ollama:11434/api/pull -d '{"name": "mistral:7b"}'
-        echo ""
-        echo "Pulling gpt-oss:20b..."
-        curl -X POST http://ollama:11434/api/pull -d '{"name": "gpt-oss:20b"}'
-        echo ""
-        echo "Models ready!"
-    restart: "no"
 
   # FastAPI backend
   api:
@@ -78,16 +110,16 @@ services:
     volumes:
       - ../app:/app
     ports:
-      - "8000:8000"
+      - "8001:8000"
     environment:
       - DATABASE_URL=postgresql://rag:rag_password@postgres:5432/ragdb
-      - OLLAMA_HOST=http://ollama:11434
+      - VLLM_HOST=http://vllm:8000
       - EMBEDDING_MODEL=nomic-embed-text
-      - LLM_MODEL=mistral:7b  # Use gpt-oss:20b for production
+      - LLM_MODEL=gpt-oss-20b
     depends_on:
       postgres:
         condition: service_healthy
-      ollama:
+      vllm:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -109,14 +141,13 @@ services:
       - "8501:8501"
     environment:
       - API_URL=http://api:8000
-      - OLLAMA_HOST=http://ollama:11434
     depends_on:
       - api
     restart: unless-stopped
 
 volumes:
   postgres_data:
-  ollama_data:
+  vllm_models:
 
 networks:
   default:

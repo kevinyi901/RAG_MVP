@@ -53,7 +53,7 @@ echo ""
 # List imported images
 echo "Imported images:"
 echo "----------------"
-${CONTAINER_CMD} images | grep -E "(rag-app|rag-ollama|rag-postgres)"
+${CONTAINER_CMD} images | grep -E "(rag-app|rag-vllm|rag-postgres)"
 
 echo ""
 echo "========================================"

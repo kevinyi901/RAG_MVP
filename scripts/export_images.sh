@@ -33,7 +33,7 @@ mkdir -p "${OFFLINE_DIR}/images"
 # Images to export
 IMAGES=(
     "rag-app:latest"
-    "rag-ollama:latest"
+    "rag-vllm:latest"
     "rag-postgres:latest"
 )
 
@@ -51,13 +51,13 @@ echo "Saving images to ${OUTPUT_FILE}..."
 if [ "${CONTAINER_CMD}" == "podman" ]; then
     podman save \
         localhost/rag-app:latest \
-        localhost/rag-ollama:latest \
+        localhost/rag-vllm:latest \
         localhost/rag-postgres:latest \
         -o "${OUTPUT_FILE}"
 else
     docker save \
         rag-app:latest \
-        rag-ollama:latest \
+        rag-vllm:latest \
         rag-postgres:latest \
         -o "${OUTPUT_FILE}"
 fi

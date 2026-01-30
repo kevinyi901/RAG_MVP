@@ -1,0 +1,31 @@
+# vLLM container with model download support
+# Can pre-download models for air-gapped deployment
+
+FROM vllm/vllm-openai:latest
+
+# Set model directory
+ENV MODEL_DIR=/models
+
+# Create model directory
+RUN mkdir -p /models
+
+# Install git (required for some HuggingFace models)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Optional: Download models at build time
+# Uncomment the following lines to bake models into the image (larger image size)
+# RUN pip install huggingface-hub && \
+#     huggingface-cli download gpt-oss/gpt-oss-20b --local-dir /models/gpt-oss-20b && \
+#     huggingface-cli download mistralai/Mistral-7B-Instruct-v0.2 --local-dir /models/mistral-7b
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Expose vLLM API port
+EXPOSE 8000
+
+# Default command: serve the model with OpenAI-compatible API
+CMD ["--model", "/models/gpt-oss-20b", "--host", "0.0.0.0", "--port", "8000"]

@@ -13,14 +13,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from rag import EmbeddingService, Retriever, BM25Ranker, RAGPipeline
-from utils import DocumentLoader, EnhancedDocumentLoader, TextChunker, SemanticChunker
+from rag import EmbeddingService, Retriever, SemanticRanker, RAGPipeline
+from utils import DocumentLoader, EnhancedDocumentLoader, TextChunker
 
 
 # Global instances
 embedding_service: EmbeddingService = None
 retriever: Retriever = None
-ranker: BM25Ranker = None
+ranker: SemanticRanker = None
 pipeline: RAGPipeline = None
 
 
@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI):
 
     embedding_service = EmbeddingService()
     retriever = Retriever()
-    ranker = BM25Ranker()
+    ranker = SemanticRanker()
     pipeline = RAGPipeline(
         embedding_service=embedding_service,
         retriever=retriever,
@@ -108,7 +108,7 @@ class FeedbackRequest(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     database: str
-    ollama: str
+    vllm: str
     total_documents: int
     total_chunks: int
 
@@ -120,7 +120,7 @@ async def health_check():
     import httpx
 
     db_status = "healthy"
-    ollama_status = "healthy"
+    vllm_status = "healthy"
     total_docs = 0
     total_chunks = 0
 
@@ -132,19 +132,19 @@ async def health_check():
     except Exception as e:
         db_status = f"unhealthy: {str(e)}"
 
-    # Check Ollama
+    # Check vLLM
     try:
-        ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+        vllm_host = os.getenv("VLLM_HOST", "http://localhost:8000")
         with httpx.Client(timeout=5.0) as client:
-            response = client.get(f"{ollama_host}/api/tags")
+            response = client.get(f"{vllm_host}/health")
             response.raise_for_status()
     except Exception as e:
-        ollama_status = f"unhealthy: {str(e)}"
+        vllm_status = f"unhealthy: {str(e)}"
 
     return HealthResponse(
-        status="healthy" if db_status == "healthy" and ollama_status == "healthy" else "degraded",
+        status="healthy" if db_status == "healthy" and vllm_status == "healthy" else "degraded",
         database=db_status,
-        ollama=ollama_status,
+        vllm=vllm_status,
         total_documents=total_docs,
         total_chunks=total_chunks
     )
@@ -189,10 +189,7 @@ async def delete_document(document_id: int):
 @app.post("/api/documents/upload")
 async def upload_document(
     file: UploadFile = File(...),
-    use_ocr: bool = Query(True, description="Enable OCR for scanned documents"),
     extract_tables: bool = Query(True, description="Extract tables from PDFs"),
-    use_semantic_chunking: bool = Query(False, description="Use AI for semantic chunking"),
-    model: Optional[str] = Query(None, description="LLM model for semantic chunking")
 ):
     """Upload and process a document with configurable options."""
     try:
@@ -201,13 +198,10 @@ async def upload_document(
         filename = file.filename
 
         # Choose loader based on options
-        if extract_tables or use_ocr:
-            loader = EnhancedDocumentLoader(
-                ocr_enabled=use_ocr,
-                extract_tables=extract_tables
-            )
+        if extract_tables:
+            loader = EnhancedDocumentLoader(extract_tables=extract_tables)
         else:
-            loader = DocumentLoader(ocr_enabled=use_ocr)
+            loader = DocumentLoader()
 
         doc = loader.load_bytes(content, filename)
 
@@ -219,23 +213,9 @@ async def upload_document(
             page_count=doc.page_count
         )
 
-        # Choose chunker based on options
-        if use_semantic_chunking:
-            chunker = SemanticChunker(model=model or os.getenv("LLM_MODEL", "mistral:7b"))
-            chunks = []
-            for page in doc.pages:
-                page_chunks = chunker.chunk_with_ai(
-                    text=page.get('content', ''),
-                    page_number=page.get('page_number'),
-                    section_title=page.get('section_title')
-                )
-                chunks.extend(page_chunks)
-            # Re-index chunks
-            for i, chunk in enumerate(chunks):
-                chunk.chunk_index = i
-        else:
-            chunker = TextChunker()
-            chunks = chunker.chunk_document(doc.pages)
+        # Chunk document (simple 500-token / 100-overlap)
+        chunker = TextChunker()
+        chunks = chunker.chunk_document(doc.pages)
 
         # Embed and store each chunk
         for chunk in chunks:
@@ -256,9 +236,7 @@ async def upload_document(
             "filename": filename,
             "chunk_count": len(chunks),
             "options": {
-                "ocr": use_ocr,
-                "tables": extract_tables,
-                "semantic_chunking": use_semantic_chunking
+                "tables": extract_tables
             }
         }
     except ValueError as e:

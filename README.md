@@ -5,10 +5,9 @@ A Retrieval-Augmented Generation (RAG) system designed for air-gapped deployment
 ## Features
 
 - **Pre-loaded Documents**: System works with documents loaded during deployment
-- **OCR Support**: Process scanned documents using Tesseract
 - **Vector Search**: pgvector for efficient similarity search
-- **BM25 Reranking**: Hybrid retrieval with BM25 scoring
-- **GPU-Accelerated LLM**: Ollama with gpt-oss:20b model
+- **Semantic Ranking**: Pure vector similarity ranking based on embeddings
+- **GPU-Accelerated LLM**: vLLM with gpt-oss:20b model
 - **Source Attribution**: See which documents and sections informed each answer
 - **Chain of Thought**: View the model's reasoning process
 
@@ -19,11 +18,11 @@ A Retrieval-Augmented Generation (RAG) system designed for air-gapped deployment
 │                     Podman Compose Stack                         │
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────────────┐  │
-│  │  Streamlit  │────│  RAG API    │────│  Ollama (GPU)       │  │
+│  │  Streamlit  │────│  RAG API    │────│  vLLM (GPU)         │  │
 │  │  Frontend   │    │  (FastAPI)  │    │  - gpt-oss:20b      │  │
-│  │  Port 8501  │    │  Port 8000  │    │  - nomic-embed-text │  │
-│  └─────────────┘    └─────────────┘    │  Port 11434         │  │
-│         │                  │           └─────────────────────┘  │
+│  │  Port 8501  │    │  Port 8001  │    │  Port 8000          │  │
+│  └─────────────┘    └─────────────┘    └─────────────────────┘  │
+│         │                  │                                    │
 │         └──────────────────┼─────────────────────────────────┐  │
 │                            │                                 │  │
 │                    ┌───────▼───────┐                         │  │
@@ -38,9 +37,9 @@ A Retrieval-Augmented Generation (RAG) system designed for air-gapped deployment
 
 ### Target Environment (Air-Gapped)
 - **OS**: RHEL 8.10
-- **GPU**: NVIDIA RTX 3090 (24GB VRAM) or equivalent
-- **RAM**: 24GB minimum
-- **Storage**: 50GB+ for images and models
+- **GPU**: NVIDIA A40 (48GB VRAM) or RTX 3090 (24GB - requires quantization)
+- **RAM**: 32GB minimum (64GB recommended)
+- **Storage**: 100GB+ for full models, 50GB+ for quantized
 - **Container Runtime**: Podman 4.x
 
 ### Development Environment
@@ -52,11 +51,12 @@ A Retrieval-Augmented Generation (RAG) system designed for air-gapped deployment
 | Component | Version |
 |-----------|---------|
 | Python | 3.10.14 |
-| Ollama | 0.1.23 |
-| PostgreSQL | 15.10 |
-| pgvector | 0.7.4 |
+| vLLM | latest (with quantization support) |
+| PostgreSQL | 15 |
+| pgvector | 0.2.5 |
 | FastAPI | 0.109.x |
 | Streamlit | 1.31.x |
+| GPU Support | CUDA 11.8+ (A40 native) |
 
 ## Quick Start (Development)
 
@@ -69,11 +69,8 @@ cd RAG_MVP
 # Copy environment file
 cp .env.example .env
 
-# Start the stack (first run downloads models)
+# Start the stack
 docker compose -f containers/docker-compose.dev.yml up -d
-
-# Watch Ollama download models
-docker logs -f rag-ollama-init
 
 # Access the UI
 open http://localhost:8501
@@ -103,6 +100,7 @@ podman-compose -f containers/podman-compose.dev.yml ps
 
 This creates:
 - `offline_packages/images/rag_stack.tar.gz` - Container images with models
+- `offline_packages/models/embedding/` - Embedding model for sentence-transformers
 - `offline_packages/wheels/` - Python packages
 - `offline_packages/rpms/` - Instructions for NVIDIA toolkit
 
@@ -110,6 +108,7 @@ This creates:
 
 Copy to the air-gapped machine:
 - `offline_packages/images/rag_stack.tar.gz`
+- `offline_packages/models/embedding/` (mount or copy into app container)
 - `scripts/` directory
 - `containers/` directory
 - `.env.example`
@@ -174,8 +173,9 @@ Environment variables (in `.env`):
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DATABASE_URL` | postgresql://... | PostgreSQL connection string |
-| `OLLAMA_HOST` | http://ollama:11434 | Ollama API endpoint |
-| `EMBEDDING_MODEL` | mxbai-embed-large | Embedding model name |
+| `VLLM_HOST` | http://vllm:8000 | vLLM API endpoint |
+| `EMBEDDING_MODEL` | nomic-embed-text | Embedding model name |
+| `EMBEDDING_MODEL_PATH` | /models/embedding | Local path to embedding model files |
 | `LLM_MODEL` | gpt-oss:20b | LLM model name |
 | `CHUNK_SIZE` | 512 | Tokens per chunk |
 | `CHUNK_OVERLAP` | 50 | Overlap tokens between chunks |
@@ -193,7 +193,7 @@ Models can be swapped by changing environment variables. The system is not locke
 |-----------|------------|
 | PostgreSQL | 4GB |
 | Python/Streamlit/FastAPI | 4GB |
-| Document processing (OCR) | 4GB |
+| Document processing | 4GB |
 | System/OS | 4GB |
 | Buffer/headroom | 8GB |
 
@@ -201,7 +201,7 @@ Models can be swapped by changing environment variables. The system is not locke
 
 ### Compatible LLM Models
 
-To swap models, edit `.env` and modify `LLM_MODEL` and/or `EMBEDDING_MODEL`, then restart.
+To swap models, edit `.env` and modify `LLM_MODEL`, then restart. Models must be in HuggingFace format and placed in the vLLM model directory.
 
 | Model | VRAM Required | Notes |
 |-------|---------------|-------|
@@ -212,16 +212,17 @@ To swap models, edit `.env` and modify `LLM_MODEL` and/or `EMBEDDING_MODEL`, the
 | llama2:13b | ~8GB | Balanced performance |
 | llama2:7b | ~4GB | Faster, lower quality |
 | mistral:7b | ~4GB | Good quality for size |
-| mixtral:8x7b | ~26GB | Won't fit on 24GB |
 | codellama:13b | ~8GB | Better for code docs |
 
 ### Compatible Embedding Models
 
-| Model | VRAM | Dimensions | Notes |
-|-------|------|------------|-------|
-| mxbai-embed-large | ~0.7GB | 1024 | **Default - Higher quality** |
-| nomic-embed-text | ~0.5GB | 768 | Good baseline |
-| all-minilm | ~0.2GB | 384 | Fastest |
+Embeddings are generated locally via sentence-transformers (no GPU service required).
+
+| Model | Dimensions | Notes |
+|-------|------------|-------|
+| nomic-embed-text | 768 | **Default - Good baseline** |
+| mxbai-embed-large | 1024 | Higher quality |
+| all-MiniLM-L6-v2 | 384 | Fastest, smallest |
 
 **Note:** If you change embedding dimensions, you must:
 1. Update `init.sql` to match: `VECTOR(1024)` → `VECTOR(new_dimensions)`
@@ -229,14 +230,7 @@ To swap models, edit `.env` and modify `LLM_MODEL` and/or `EMBEDDING_MODEL`, the
 
 ### Air-Gap Model Selection
 
-To include different models in your air-gap bundle, edit `scripts/download_for_airgap.sh`:
-
-```bash
-# Change these lines to your preferred models
-ollama pull mxbai-embed-large      # embedding model
-ollama pull gpt-oss:20b           # LLM model
-ollama pull mistral:7b            # additional model (optional)
-```
+To include different models in your air-gap bundle, edit `scripts/download_for_airgap.sh` and change the model download commands for both the LLM (HuggingFace model) and embedding model (sentence-transformers model).
 
 ## Project Structure
 
@@ -246,16 +240,16 @@ RAG_MVP/
 │   ├── main.py              # FastAPI backend
 │   ├── streamlit_app.py     # Streamlit frontend
 │   ├── rag/
-│   │   ├── embeddings.py    # Ollama embedding service
+│   │   ├── embeddings.py    # sentence-transformers embedding service
 │   │   ├── retriever.py     # pgvector retrieval
 │   │   ├── ranker.py        # BM25 reranking
 │   │   └── pipeline.py      # RAG orchestration
 │   └── utils/
-│       ├── document_loader.py  # PDF/DOCX/TXT parsing + OCR
+│       ├── document_loader.py  # PDF/DOCX/TXT parsing
 │       └── chunker.py          # Token-based chunking
 ├── containers/
 │   ├── Containerfile.app       # Python application image
-│   ├── Containerfile.ollama    # Ollama with models
+│   ├── Containerfile.vllm      # vLLM with model
 │   ├── docker-compose.dev.yml  # Docker development
 │   ├── podman-compose.yml      # Podman production
 │   ├── podman-compose.dev.yml  # Podman development
@@ -285,14 +279,15 @@ nvidia-ctk cdi list
 sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
 ```
 
-### Ollama Connection Issues
+### vLLM Connection Issues
 
 ```bash
-# Check Ollama logs
-podman logs rag-ollama
+# Check vLLM logs
+podman logs rag-vllm
 
-# Test Ollama API
-curl http://localhost:11434/api/tags
+# Test vLLM API
+curl http://localhost:8000/health
+curl http://localhost:8000/v1/models
 ```
 
 ### Database Connection Issues

@@ -10,7 +10,7 @@ from typing import Optional, List
 # Config
 # -------------------------------------------------------------------
 API_URL = "http://api:8000"
-AVAILABLE_MODELS = ["mistral:7b", "gpt-oss:20b"]
+AVAILABLE_MODELS = ["gpt-oss-20b", "mistral-7b"]
 
 # -------------------------------------------------------------------
 # Session State
@@ -39,20 +39,18 @@ def fetch_documents():
         return []
 
 
-def upload_document(file, use_ocr=True, extract_tables=True, use_semantic=False):
+def upload_document(file, extract_tables=True):
     """Upload a document to the API with options."""
     try:
         files = {"file": (file.name, file.getvalue(), file.type)}
         params = {
-            "use_ocr": use_ocr,
-            "extract_tables": extract_tables,
-            "use_semantic_chunking": use_semantic
+            "extract_tables": extract_tables
         }
         r = requests.post(
             f"{API_URL}/api/documents/upload",
             files=files,
             params=params,
-            timeout=300  # Longer timeout for semantic chunking
+            timeout=300
         )
         r.raise_for_status()
         return r.json()
@@ -116,18 +114,13 @@ def render_sidebar():
             )
             if uploaded_file:
                 st.caption("Options:")
-                use_ocr = st.checkbox("OCR (scanned docs)", value=True, key="opt_ocr")
                 extract_tables = st.checkbox("Extract tables", value=True, key="opt_tables")
-                use_semantic = st.checkbox("AI chunking", value=False, key="opt_semantic",
-                                          help="Slower but better boundaries")
 
                 if st.button("Upload", key="upload_confirm"):
-                    with st.spinner("Processing..." + (" (AI chunking)" if use_semantic else "")):
+                    with st.spinner("Processing..."):
                         result = upload_document(
                             uploaded_file,
-                            use_ocr=use_ocr,
-                            extract_tables=extract_tables,
-                            use_semantic=use_semantic
+                            extract_tables=extract_tables
                         )
                         if "error" in result:
                             st.error(result["error"])

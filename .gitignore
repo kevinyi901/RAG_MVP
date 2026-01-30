@@ -1,0 +1,35 @@
+# Dependencies
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.env.local
+
+# Large files - Download separately for air-gapped deployment
+# See DEPLOYMENT.md for model download instructions
+models/
+offline_packages/
+*.tar.gz
+
+# Database
+*.db
+postgres_data/
+pgdata/
+
+# Cache
+.cache/
+.pytest_cache/
