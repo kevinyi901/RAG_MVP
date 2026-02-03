@@ -22,8 +22,10 @@ ENV/
 # Large files - Download separately for air-gapped deployment
 # See DEPLOYMENT.md for model download instructions
 models/
+wheels/
 offline_packages/
 *.tar.gz
+requirements.lock
 
 # Database
 *.db
