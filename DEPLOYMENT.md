@@ -29,7 +29,7 @@ This document provides deployment instructions and security information for the 
 
 ### Development Requirements
 - Docker or Podman
-- Python 3.10+
+- Python 3.12+
 - Internet access (for initial model downloads)
 
 ## Model Download
@@ -95,8 +95,8 @@ After downloading, verify file integrity:
 find ./models -type f -name "*.safetensors" -o -name "*.bin" | head -20
 
 # Check size
-du -sh ./models/gpt-oss-20b
-du -sh ./models/mistral-7b
+du -sh ./models/gpt-oss-20b-awq
+du -sh ./models/mistral-7b-awq
 ```
 
 ## Development Deployment
@@ -151,22 +151,36 @@ docker compose -f containers/docker-compose.dev.yml down -v
 
 ```bash
 # 1. Download all models (see "Model Download" section)
-mkdir -p models
-# ... (download commands as above)
+./scripts/download_llm_models.sh quantized
+# Models will be saved to ./models/gpt-oss-20b-awq and ./models/mistral-7b-awq
 
-# 2. Create offline packages directory
-mkdir -p offline_packages/{images,models,wheels}
+# 2. Download Python wheels for air-gapped install
+./scripts/download_wheels.sh
+# Wheels will be saved to ./wheels/ (~920MB)
 
-# 3. Copy models
-cp -r models/gpt-oss-20b offline_packages/models/
-cp -r models/mistral-7b offline_packages/models/
+# 3. Build the application container image
+docker build -f containers/Containerfile.app -t localhost/rag-app:latest .
 
-# 4. Export container images
-docker save -o offline_packages/images/rag-postgres.tar pgvector/pgvector:pg15
-docker save -o offline_packages/images/rag-vllm.tar vllm/vllm-openai:latest
-docker save -o offline_packages/images/rag-app.tar rag-app:latest
+# 4. Pull and tag base images
+docker pull pgvector/pgvector:pg16
+docker tag pgvector/pgvector:pg16 localhost/rag-postgres:latest
 
-# Compress for transfer
+docker pull vllm/vllm-openai:latest
+docker tag vllm/vllm-openai:latest localhost/rag-vllm:latest
+
+# 5. Create offline packages directory
+mkdir -p offline_packages/{images,models}
+
+# 6. Copy models
+cp -r models/gpt-oss-20b-awq offline_packages/models/
+cp -r models/mistral-7b-awq offline_packages/models/
+
+# 7. Export container images
+docker save -o offline_packages/images/rag-postgres.tar localhost/rag-postgres:latest
+docker save -o offline_packages/images/rag-vllm.tar localhost/rag-vllm:latest
+docker save -o offline_packages/images/rag-app.tar localhost/rag-app:latest
+
+# 8. Compress for transfer
 cd offline_packages
 tar czf ../rag-offline.tar.gz .
 ```
@@ -175,11 +189,21 @@ tar czf ../rag-offline.tar.gz .
 
 Transfer the following to the air-gapped system:
 - `rag-offline.tar.gz` (container images + models)
-- `scripts/` directory
-- `containers/` directory
-- `app/` directory
-- `requirements.txt`
+- `containers/` directory (compose files)
 - `.env.example`
+
+**Directory structure on air-gapped machine:**
+```
+RAG_MVP/
+├── models/
+│   ├── gpt-oss-20b-awq/
+│   └── mistral-7b-awq/
+├── containers/
+│   ├── docker-compose.dev.yml
+│   ├── podman-compose.yml
+│   └── init.sql
+└── .env
+```
 
 ### Phase 3: Deployment on Air-Gapped Machine
 
@@ -187,22 +211,25 @@ Transfer the following to the air-gapped system:
 # 1. Extract offline packages
 tar xzf rag-offline.tar.gz -C ./
 
-# 2. Load container images
+# 2. Copy models to expected location
+cp -r offline_packages/models/* ./models/
+
+# 3. Load container images (images are tagged as localhost/*)
 podman load -i offline_packages/images/rag-postgres.tar
 podman load -i offline_packages/images/rag-vllm.tar
 podman load -i offline_packages/images/rag-app.tar
 
-# 3. Setup system (requires sudo)
-sudo ./scripts/setup_rhel.sh
+# 4. Verify images are loaded
+podman images | grep localhost
 
-# 4. Copy environment file
+# 5. Copy environment file
 cp .env.example .env
 # Edit .env as needed
 
-# 5. Start the stack
+# 6. Start the stack
 podman-compose -f containers/podman-compose.yml up -d
 
-# 6. Verify deployment
+# 7. Verify deployment
 podman-compose -f containers/podman-compose.yml ps
 ```
 
@@ -231,20 +258,21 @@ podman-compose -f containers/podman-compose.yml ps
 - [ ] Enable audit logging
 
 ### Dependencies
-- All 89 Python packages are production dependencies
+- All ~110 Python packages are production dependencies
 - No development-only packages in requirements.txt
 - All transitive dependencies explicitly listed for air-gap compatibility
+- Pre-downloaded wheels available in `wheels/` directory (~920MB)
 
 ## Model Integrity (SHA256)
 
 After downloading models, compute checksums for security verification:
 
 ```bash
-# For gpt-oss-20b
-find ./models/gpt-oss-20b -type f -exec sha256sum {} \; > gpt-oss-20b.sha256
+# For gpt-oss-20b-awq
+find ./models/gpt-oss-20b-awq -type f -exec sha256sum {} \; > gpt-oss-20b.sha256
 
-# For mistral-7b
-find ./models/mistral-7b -type f -exec sha256sum {} \; > mistral-7b.sha256
+# For mistral-7b-awq
+find ./models/mistral-7b-awq -type f -exec sha256sum {} \; > mistral-7b.sha256
 
 # Verify (on air-gapped machine)
 sha256sum -c gpt-oss-20b.sha256
@@ -283,9 +311,10 @@ TOP_K_RERANK=5           # Number of top results after ranking
 - Check GPU VRAM (need 24GB+ for gpt-oss-20b)
 
 ### Models Not Found
-- Verify models are in `./models/gpt-oss-20b` and `./models/mistral-7b`
-- Check docker-compose volumes are mounted correctly
+- Verify models are in `./models/gpt-oss-20b-awq` and `./models/mistral-7b-awq`
+- Check compose volumes are mounted correctly (`../models:/models:ro`)
 - Ensure model file permissions are readable
+- All compose files use local images (`localhost/rag-*:latest`)
 
 ### Database Connection Failed
 - Verify PostgreSQL container is running: `docker ps`
@@ -310,8 +339,8 @@ docker exec -i rag-postgres psql -U rag ragdb < backup.sql
 
 ### Update Container Images
 ```bash
-# Pull latest images
-docker compose pull
+# For air-gapped: rebuild from updated wheels/source
+docker build -f containers/Containerfile.app -t localhost/rag-app:latest .
 
 # Restart services
 docker compose -f containers/docker-compose.dev.yml up -d
@@ -327,7 +356,9 @@ For security issues, please:
 
 ---
 
-**Last Updated**: 2026-01-30
-**Version**: 1.0
-**Python**: 3.10+
-**Status**: Ready for production deployment
+**Last Updated**: 2026-02-02
+**Version**: 1.1
+**Python**: 3.12.11
+**PostgreSQL**: 16.8
+**Streamlit**: 1.51.0
+**Status**: Ready for air-gapped production deployment

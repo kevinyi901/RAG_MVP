@@ -26,7 +26,7 @@ fi
 mkdir -p "${MODELS_DIR}"
 
 if ! command -v pip &> /dev/null; then
-    echo "ERROR: pip not found. Please install Python 3.10+"
+    echo "ERROR: pip not found. Please install Python 3.12+"
     exit 1
 fi
 

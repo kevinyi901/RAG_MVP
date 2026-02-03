@@ -5,7 +5,7 @@ version: "3.8"
 
 services:
   postgres:
-    image: pgvector/pgvector:pg15
+    image: pgvector/pgvector:pg16
     container_name: rag-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-rag}
@@ -30,7 +30,7 @@ services:
     devices:
       - nvidia.com/gpu=all
     volumes:
-      - vllm_models:/models
+      - ../models:/models:ro
     ports:
       - "8000:8000"
     command: ["--model", "/models/gpt-oss-20b-awq", "--load-format", "awq", "--served-model-name", "gpt-oss:20b", "--host", "0.0.0.0", "--port", "8000"]
@@ -48,7 +48,7 @@ services:
     devices:
       - nvidia.com/gpu=all
     volumes:
-      - vllm_models:/models
+      - ../models:/models:ro
     ports:
       - "8002:8000"
     command: ["--model", "/models/mistral-7b-awq", "--load-format", "awq", "--served-model-name", "mistral:7b", "--host", "0.0.0.0", "--port", "8000"]
@@ -106,7 +106,6 @@ services:
 
 volumes:
   pgdata:
-  vllm_models:
 
 networks:
   default:

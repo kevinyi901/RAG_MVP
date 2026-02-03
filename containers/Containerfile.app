@@ -1,7 +1,7 @@
 # Containerfile for RAG Application
-# Base: Python 3.10 with table extraction support
+# Base: Python 3.12.11 with table extraction support
 
-FROM python:3.10.14-slim
+FROM python:3.12.11-slim
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -19,11 +19,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Set working directory
 WORKDIR /app
 
-# Copy requirements first for better caching
+# Copy requirements and pre-downloaded wheels for air-gapped install
 COPY requirements.txt .
+COPY wheels/ /wheels/
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies from local wheels (air-gapped)
+RUN pip install --no-cache-dir --no-index --find-links /wheels/ -r requirements.txt
 
 # Copy application code
 COPY app/ .

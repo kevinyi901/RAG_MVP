@@ -50,12 +50,12 @@ A Retrieval-Augmented Generation (RAG) system designed for air-gapped deployment
 
 | Component | Version |
 |-----------|---------|
-| Python | 3.10.14 |
+| Python | 3.12.11 |
 | vLLM | latest (with quantization support) |
-| PostgreSQL | 15 |
+| PostgreSQL | 16.8 |
 | pgvector | 0.2.5 |
 | FastAPI | 0.109.x |
-| Streamlit | 1.31.x |
+| Streamlit | 1.51.0 |
 | GPU Support | CUDA 11.8+ (A40 native) |
 
 ## Quick Start (Development)

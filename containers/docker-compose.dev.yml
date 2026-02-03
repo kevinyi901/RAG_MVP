@@ -1,7 +1,7 @@
 services:
   # PostgreSQL with pgvector extension
   postgres:
-    image: pgvector/pgvector:pg15
+    image: localhost/rag-postgres:latest
     container_name: rag-postgres
     environment:
       POSTGRES_USER: rag
@@ -21,7 +21,7 @@ services:
 
   # vLLM LLM server - gpt-oss-20b BF16 (13GB) or AWQ quantized (6GB)
   vllm:
-    image: vllm/vllm-openai:latest
+    image: localhost/rag-vllm:latest
     container_name: rag-vllm
     volumes:
       - ../models:/models:ro
@@ -67,10 +67,10 @@ services:
 
   # vLLM LLM server - mistral:7b-AWQ (quantized, 4-bit)
   vllm-mistral:
-    image: vllm/vllm-openai:latest
+    image: localhost/rag-vllm:latest
     container_name: rag-vllm-mistral
     volumes:
-      - vllm_models:/models
+      - ../models:/models:ro
     ports:
       - "8002:8000"
     command:
@@ -147,7 +147,6 @@ services:
 
 volumes:
   postgres_data:
-  vllm_models:
 
 networks:
   default:

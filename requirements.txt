@@ -1,5 +1,6 @@
 # RAG MVP Dependencies
-# Python 3.10.x
+# Python 3.12.11
+# PostgreSQL 16.8
 # Air-gapped environment with all transitive dependencies explicitly listed
 
 # ============================================================================
@@ -14,14 +15,14 @@ anyio==4.12.1              # Async I/O library (httpx, starlette dependency)
 # ============================================================================
 # UI FRAMEWORK (Streamlit Frontend)
 # ============================================================================
-streamlit==1.31.1          # Frontend framework
+streamlit==1.51.0          # Frontend framework
 altair==5.5.0              # Chart library (streamlit dependency)
 blinker==1.9.0             # Signal library (streamlit dependency)
 cachetools==5.5.2          # Caching (streamlit dependency)
 gitpython==3.1.46          # Git integration (streamlit dependency)
 pydeck==0.9.1              # Map visualization (streamlit dependency)
 protobuf==4.25.8           # Data serialization (streamlit dependency)
-pyarrow==23.0.0            # Columnar data (streamlit dependency)
+pyarrow==20.0.0            # Columnar data (streamlit dependency)
 rich==13.9.4               # Terminal formatting (streamlit dependency)
 tenacity==8.5.0            # Retry library (streamlit dependency)
 toml==0.10.2               # Config parsing (streamlit dependency)
@@ -38,12 +39,12 @@ pgvector==0.2.5            # pgvector extension for vector similarity search
 # EMBEDDINGS & NLP (Semantic Search)
 # ============================================================================
 sentence-transformers==5.2.2  # Embedding generation from text
-torch==2.10.0              # ML framework (sentence-transformers dependency)
+torch==2.6.0               # ML framework (sentence-transformers dependency)
 transformers==5.0.0        # NLP models (sentence-transformers dependency)
 tokenizers==0.22.2         # Fast tokenizer (transformers dependency)
 tiktoken==0.6.0            # Token counter for LLM context windows
-scikit-learn==1.8.0        # ML utilities (sentence-transformers dependency)
-scipy==1.17.0              # Scientific computing (scikit-learn dependency)
+scikit-learn==1.7.2        # ML utilities (sentence-transformers dependency)
+scipy==1.16.3              # Scientific computing (scikit-learn dependency)
 threadpoolctl==3.6.0       # Thread pool control (scikit-learn dependency)
 
 # ============================================================================
@@ -68,7 +69,7 @@ sniffio==1.3.1             # Async detection (anyio, httpx dependency)
 # ============================================================================
 # DATA PROCESSING & ML
 # ============================================================================
-pandas==2.3.3              # Data frames (streamlit dependency)
+pandas==2.3.2              # Data frames (streamlit dependency)
 numpy==1.26.4              # Numerical computing (multiple dependencies)
 joblib==1.5.3              # Parallel computing (scikit-learn dependency)
 
@@ -127,7 +128,7 @@ typing-extensions==4.15.0  # Extended typing features (multiple dependencies)
 # ============================================================================
 packaging==23.2            # Version parsing (altair, streamlit dependency)
 mpmath==1.3.0              # Arbitrary precision math (sympy dependency)
-sympy==1.14.0              # Symbolic math (torch dependency)
+sympy==1.13.1              # Symbolic math (torch dependency)
 networkx==3.6.1            # Graph algorithms (torch dependency)
 six==1.17.0                # Python 2/3 compatibility (python-dateutil dependency)
 click==8.3.1               # CLI library (streamlit, uvicorn dependency)
