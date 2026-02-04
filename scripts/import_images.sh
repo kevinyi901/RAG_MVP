@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 # Default location for the tar file
-TAR_FILE="${1:-${PROJECT_DIR}/offline_packages/images/rag_stack.tar.gz}"
+TAR_FILE="${1:-${PROJECT_DIR}/images/rag_stack.tar.gz}"
 
 echo "========================================"
 echo "RAG System Image Import Script"

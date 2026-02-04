@@ -53,18 +53,30 @@ open http://<ec2-public-ip>:8501
 
 ### For Air-Gapped Deployment
 
-1. **Download models here:** `bash scripts/download_llm_models.sh`
-2. **Commit code to git** (models in .gitignore, not committed)
-3. **Transfer to air-gapped machine:**
-   - Code directory (from git)
-   - `models/` directory (local, ~45GB)
-4. **Deploy:** See DEPLOYMENT.md
+```bash
+# Download everything (LLM models, embedding model, wheels, container images)
+bash scripts/download_for_airgap.sh
+
+# Package into a single offline tar.gz
+bash scripts/export_images.sh
+
+# Transfer rag-offline-package.tar.gz to the air-gapped machine
+```
+
+See DEPLOYMENT.md for full instructions.
 
 ### Model Specs
 
+**LLM Models (served by vLLM):**
 - **gpt-oss-20b**: 22B MoE (3.6B active), ~41GB on disk, ~16GB VRAM (MXFP4 at inference)
 - **mistral-7b-awq**: 4-bit quantized, 4GB, ~80 tokens/sec
 - **Both fit on**: A10G (23GB), A40 (48GB), RTX 3090/4090 (24GB) — combined 0.70 + 0.25 GPU memory utilization
+
+**Embedding Model (local, CPU-based via sentence-transformers):**
+- **nomic-ai/nomic-embed-text-v1.5**: 768 dimensions, 137M params, ~550MB on disk
+- Runs on CPU inside the API container (no GPU needed)
+- Requires `trust_remote_code=True` and `einops` package
+- Pre-downloaded to `models/embedding/nomic-embed-text-v1.5/` for air-gap
 
 ### Troubleshooting
 

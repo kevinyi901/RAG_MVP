@@ -46,7 +46,7 @@ class RAGPipeline:
         self.ranker = ranker or SemanticRanker()
 
         self.vllm_host = vllm_host or os.getenv("VLLM_HOST", "http://localhost:8000")
-        self.llm_model = llm_model or os.getenv("LLM_MODEL", "gpt-oss:20b")
+        self.llm_model = llm_model or os.getenv("LLM_MODEL", "gpt-oss-20b")
         self.top_k_retrieval = top_k_retrieval or int(os.getenv("TOP_K_RETRIEVAL", "20"))
         self.top_k_rerank = top_k_rerank or int(os.getenv("TOP_K_RERANK", "5"))
 

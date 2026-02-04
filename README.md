@@ -7,7 +7,7 @@ A Retrieval-Augmented Generation (RAG) system designed for air-gapped deployment
 - **Pre-loaded Documents**: System works with documents loaded during deployment
 - **Vector Search**: pgvector for efficient similarity search
 - **Semantic Ranking**: Pure vector similarity ranking based on embeddings
-- **GPU-Accelerated LLM**: vLLM with gpt-oss:20b model
+- **GPU-Accelerated LLM**: vLLM with gpt-oss-20b model
 - **Source Attribution**: See which documents and sections informed each answer
 - **Chain of Thought**: View the model's reasoning process
 
@@ -19,7 +19,7 @@ A Retrieval-Augmented Generation (RAG) system designed for air-gapped deployment
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────────────┐  │
 │  │  Streamlit  │────│  RAG API    │────│  vLLM (GPU)         │  │
-│  │  Frontend   │    │  (FastAPI)  │    │  - gpt-oss:20b      │  │
+│  │  Frontend   │    │  (FastAPI)  │    │  - gpt-oss-20b      │  │
 │  │  Port 8501  │    │  Port 8001  │    │  Port 8000          │  │
 │  └─────────────┘    └─────────────┘    └─────────────────────┘  │
 │         │                  │                                    │
@@ -131,34 +131,35 @@ podman-compose -f containers/podman-compose.dev.yml ps
 ./scripts/export_images.sh
 ```
 
-This creates:
-- `offline_packages/images/rag_stack.tar.gz` - Container images with models
-- `offline_packages/models/embedding/` - Embedding model for sentence-transformers
-- `offline_packages/wheels/` - Python packages
-- `offline_packages/rpms/` - Instructions for NVIDIA toolkit
+This creates a single `rag-offline-package.tar.gz` containing:
+- Container images (rag-app, rag-vllm, rag-postgres)
+- LLM models (gpt-oss-20b, mistral-7b-awq)
+- Embedding model (nomic-ai/nomic-embed-text-v1.5)
+- Python wheels for offline pip install
+- Compose files, init.sql, .env.example, import script
 
 ### Phase 2: Transfer
 
-Copy to the air-gapped machine:
-- `offline_packages/images/rag_stack.tar.gz`
-- `offline_packages/models/embedding/` (mount or copy into app container)
-- `scripts/` directory
-- `containers/` directory
-- `.env.example`
+Copy `rag-offline-package.tar.gz` to the air-gapped machine.
 
 ### Phase 3: Deployment (Air-Gapped Machine)
 
 ```bash
-# 1. Run setup script (installs Podman, configures GPU)
-sudo ./scripts/setup_rhel.sh
+# 1. Extract the package
+mkdir -p RAG_MVP && cd RAG_MVP
+tar xzf rag-offline-package.tar.gz
 
-# 2. Import container images
-./scripts/import_images.sh
+# 2. Run setup script (installs Podman, configures GPU)
+sudo bash scripts/setup_rhel.sh
 
-# 3. Copy and edit environment file
+# 3. Import container images
+bash scripts/import_images.sh images/rag_stack.tar.gz
+
+# 4. Copy and edit environment file
 cp .env.example .env
+# Edit .env as needed (e.g., change default passwords)
 
-# 4. Start the stack
+# 5. Start the stack
 podman-compose -f containers/podman-compose.yml up -d
 ```
 
@@ -207,9 +208,9 @@ Environment variables (in `.env`):
 |----------|---------|-------------|
 | `DATABASE_URL` | postgresql://... | PostgreSQL connection string |
 | `VLLM_HOST` | http://vllm:8000 | vLLM API endpoint |
-| `EMBEDDING_MODEL` | nomic-embed-text | Embedding model name |
+| `EMBEDDING_MODEL` | nomic-ai/nomic-embed-text-v1.5 | Embedding model name |
 | `EMBEDDING_MODEL_PATH` | /models/embedding | Local path to embedding model files |
-| `LLM_MODEL` | gpt-oss:20b | LLM model name |
+| `LLM_MODEL` | gpt-oss-20b | LLM model name |
 | `CHUNK_SIZE` | 512 | Tokens per chunk |
 | `CHUNK_OVERLAP` | 50 | Overlap tokens between chunks |
 | `TOP_K_RETRIEVAL` | 20 | Chunks to retrieve |
@@ -238,13 +239,13 @@ To swap models, edit `.env` and modify `LLM_MODEL`, then restart. Models must be
 
 | Model | VRAM Required | Notes |
 |-------|---------------|-------|
-| gpt-oss:20b | ~10-12GB | Default, good quality |
+| gpt-oss-20b | ~10-12GB | Default, good quality |
 | gemma2:27b | ~16-18GB | High quality, fits 24GB |
 | gemma2:9b | ~6GB | Great quality for size |
 | gemma2:2b | ~2GB | Fast, lightweight |
 | llama2:13b | ~8GB | Balanced performance |
 | llama2:7b | ~4GB | Faster, lower quality |
-| mistral:7b | ~4GB | Good quality for size |
+| mistral-7b | ~4GB | Good quality for size |
 | codellama:13b | ~8GB | Better for code docs |
 
 ### Compatible Embedding Models
@@ -253,7 +254,7 @@ Embeddings are generated locally via sentence-transformers (no GPU service requi
 
 | Model | Dimensions | Notes |
 |-------|------------|-------|
-| nomic-embed-text | 768 | **Default - Good baseline** |
+| nomic-ai/nomic-embed-text-v1.5 | 768 | **Default - Good baseline** |
 | mxbai-embed-large | 1024 | Higher quality |
 | all-MiniLM-L6-v2 | 384 | Fastest, smallest |
 
@@ -288,9 +289,11 @@ RAG_MVP/
 │   ├── podman-compose.dev.yml  # Podman development
 │   └── init.sql                # Database schema
 ├── scripts/
-│   ├── download_for_airgap.sh  # Download dependencies
-│   ├── export_images.sh        # Export container images
-│   ├── import_images.sh        # Import on air-gapped machine
+│   ├── download_for_airgap.sh  # Download all dependencies for air-gap
+│   ├── download_llm_models.sh  # Download LLM models from HuggingFace
+│   ├── download_wheels.sh      # Download Python wheels for offline install
+│   ├── export_images.sh        # Package everything into offline tar.gz
+│   ├── import_images.sh        # Import container images on air-gapped machine
 │   └── setup_rhel.sh           # RHEL 8.10 setup
 ├── requirements.txt
 ├── .env.example

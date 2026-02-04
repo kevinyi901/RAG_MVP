@@ -86,7 +86,11 @@ huggingface-cli download TheBloke/Mistral-7B-Instruct-v0.2-AWQ \
 
 **Or use the script:**
 ```bash
+# Development (LLM models only)
 bash scripts/download_llm_models.sh
+
+# Air-gapped (LLM models + embedding model + wheels + container images)
+bash scripts/download_for_airgap.sh
 ```
 
 ### Verify Model Downloads
@@ -186,88 +190,73 @@ docker compose -f containers/docker-compose.dev.yml down -v
 
 ### Phase 1: Preparation (Internet-Connected Machine)
 
+Two scripts handle the entire preparation:
+
 ```bash
-# 1. Download all models (see "Model Download" section)
-bash scripts/download_llm_models.sh
-# Models will be saved to ./models/gpt-oss-20b and ./models/mistral-7b-awq
+# 1. Download everything (models, embedding, wheels, container images)
+bash scripts/download_for_airgap.sh
 
-# 2. Download Python wheels for air-gapped install
-./scripts/download_wheels.sh
-# Wheels will be saved to ./wheels/ (~920MB)
-
-# 3. Build the application container image
-docker build -f containers/Containerfile.app -t localhost/rag-app:latest .
-
-# 4. Pull and tag base images
-docker pull pgvector/pgvector:pg16
-docker tag pgvector/pgvector:pg16 localhost/rag-postgres:latest
-
-docker pull vllm/vllm-openai:latest
-docker tag vllm/vllm-openai:latest localhost/rag-vllm:latest
-
-# 5. Create offline packages directory
-mkdir -p offline_packages/{images,models}
-
-# 6. Copy models
-cp -r models/gpt-oss-20b offline_packages/models/
-cp -r models/mistral-7b-awq offline_packages/models/
-
-# 7. Export container images
-docker save -o offline_packages/images/rag-postgres.tar localhost/rag-postgres:latest
-docker save -o offline_packages/images/rag-vllm.tar localhost/rag-vllm:latest
-docker save -o offline_packages/images/rag-app.tar localhost/rag-app:latest
-
-# 8. Compress for transfer
-cd offline_packages
-tar czf ../rag-offline.tar.gz .
+# 2. Package into a single offline tar.gz
+bash scripts/export_images.sh
 ```
+
+`download_for_airgap.sh` downloads:
+- LLM models (gpt-oss-20b + mistral-7b-awq) via `download_llm_models.sh`
+- Embedding model (nomic-ai/nomic-embed-text-v1.5) via sentence-transformers
+- Python wheels via `download_wheels.sh`
+- Container images (vllm, pgvector, app build)
+
+`export_images.sh` packages everything into `rag-offline-package.tar.gz`.
 
 ### Phase 2: Transfer to Air-Gapped Machine
 
-Transfer the following to the air-gapped system:
-- `rag-offline.tar.gz` (container images + models)
-- `containers/` directory (compose files)
-- `.env.example`
-
-**Directory structure on air-gapped machine:**
-```
-RAG_MVP/
-├── models/
-│   ├── gpt-oss-20b/
-│   └── mistral-7b-awq/
-├── containers/
-│   ├── docker-compose.dev.yml
-│   ├── podman-compose.yml
-│   └── init.sql
-└── .env
-```
+Transfer the single file `rag-offline-package.tar.gz` to the air-gapped system.
 
 ### Phase 3: Deployment on Air-Gapped Machine
 
 ```bash
-# 1. Extract offline packages
-tar xzf rag-offline.tar.gz -C ./
+# 1. Extract the package
+mkdir -p RAG_MVP && cd RAG_MVP
+tar xzf rag-offline-package.tar.gz
 
-# 2. Copy models to expected location
-cp -r offline_packages/models/* ./models/
+# 2. Run RHEL setup (installs Podman, configures GPU)
+sudo bash scripts/setup_rhel.sh
 
-# 3. Load container images (images are tagged as localhost/*)
-podman load -i offline_packages/images/rag-postgres.tar
-podman load -i offline_packages/images/rag-vllm.tar
-podman load -i offline_packages/images/rag-app.tar
+# 3. Import container images
+bash scripts/import_images.sh images/rag_stack.tar.gz
 
 # 4. Verify images are loaded
 podman images | grep localhost
 
-# 5. Copy environment file
+# 5. Copy and edit environment file
 cp .env.example .env
-# Edit .env as needed
+# Edit .env as needed (e.g., change default passwords)
 
 # 6. Start the stack
 podman-compose -f containers/podman-compose.yml up -d
 
 # 7. Verify deployment
 podman-compose -f containers/podman-compose.yml ps
+```
+
+**Extracted directory structure:**
+```
+RAG_MVP/
+├── models/
+│   ├── gpt-oss-20b/
+│   ├── mistral-7b-awq/
+│   └── embedding/nomic-embed-text-v1.5/
+├── wheels/
+├── images/rag_stack.tar.gz
+├── containers/
+│   ├── podman-compose.yml
+│   ├── docker-compose.dev.yml
+│   └── init.sql
+├── scripts/
+│   ├── import_images.sh
+│   └── setup_rhel.sh
+├── .env.example
+└── requirements.txt
 ```
 
 ## Security Checklist
@@ -326,12 +315,12 @@ DATABASE_URL=postgresql://rag:rag_password@postgres:5432/ragdb
 
 # vLLM Configuration
 VLLM_HOST=http://vllm:8000
-LLM_MODEL=gpt-oss:20b
-VLLM_MODEL_HOSTS=mistral:7b=http://vllm-mistral:8000
+LLM_MODEL=gpt-oss-20b
+VLLM_MODEL_HOSTS=mistral-7b=http://vllm-mistral:8000
 
 # Embedding Model
-EMBEDDING_MODEL=nomic-embed-text
-EMBEDDING_MODEL_PATH=/models/nomic-embed-text
+EMBEDDING_MODEL=nomic-ai/nomic-embed-text-v1.5
+EMBEDDING_MODEL_PATH=/models/embedding
 
 # Document Processing
 CHUNK_SIZE=500           # Token size for document chunks
@@ -379,9 +368,10 @@ This means the NVIDIA driver is incompatible with the CUDA runtime in the vLLM c
 - Ensure network connectivity between containers
 
 ### Embedding Model Download Fails
-- Ensure internet access on first run
+- Ensure internet access on first run (or use `download_for_airgap.sh` to pre-download)
 - Model will be cached in `~/.cache/huggingface/`
-- For air-gapped, pre-download: `python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('nomic-ai/nomic-embed-text-v1')"`
+- For air-gapped, pre-download: `python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('nomic-ai/nomic-embed-text-v1.5', trust_remote_code=True)"`
+- The embedding model requires the `einops` package (included in requirements.txt)
 
 ## Upgrade & Rollback
 

@@ -33,7 +33,7 @@ services:
       - ../models:/models:ro
     ports:
       - "8000:8000"
-    command: ["--model", "/models/gpt-oss-20b-awq", "--load-format", "awq", "--served-model-name", "gpt-oss:20b", "--host", "0.0.0.0", "--port", "8000"]
+    command: ["--model", "/models/gpt-oss-20b", "--served-model-name", "gpt-oss-20b", "--host", "0.0.0.0", "--port", "8000", "--gpu-memory-utilization", "0.70"]
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 10s
@@ -51,7 +51,7 @@ services:
       - ../models:/models:ro
     ports:
       - "8002:8000"
-    command: ["--model", "/models/mistral-7b-awq", "--load-format", "awq", "--served-model-name", "mistral:7b", "--host", "0.0.0.0", "--port", "8000"]
+    command: ["--model", "/models/mistral-7b-awq", "--load-format", "awq", "--served-model-name", "mistral-7b", "--host", "0.0.0.0", "--port", "8000", "--gpu-memory-utilization", "0.25"]
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 10s
@@ -69,9 +69,9 @@ services:
     environment:
       - DATABASE_URL=postgresql://rag:rag_password@postgres:5432/ragdb
       - VLLM_HOST=http://vllm:8000
-      - VLLM_MODEL_HOSTS=mistral:7b=http://vllm-mistral:8000
-      - EMBEDDING_MODEL=nomic-embed-text
-      - LLM_MODEL=gpt-oss:20b
+      - VLLM_MODEL_HOSTS=mistral-7b=http://vllm-mistral:8000
+      - EMBEDDING_MODEL=nomic-ai/nomic-embed-text-v1.5
+      - LLM_MODEL=gpt-oss-20b
     volumes:
       - ../app:/app
     ports:
