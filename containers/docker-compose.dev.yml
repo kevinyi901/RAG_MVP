@@ -28,10 +28,7 @@ services:
     ports:
       - "8000:8000"
     command:
-      - "--model"
       - "/models/gpt-oss-20b"
-      - "--repo-type"
-      - "local"
       - "--served-model-name"
       - "gpt-oss-20b"
       - "--host"
@@ -65,10 +62,7 @@ services:
     ports:
       - "8002:8000"
     command:
-      - "--model"
       - "/models/mistral-7b-awq"
-      - "--repo-type"
-      - "local"
       - "--load-format"
       - "awq"
       - "--served-model-name"
