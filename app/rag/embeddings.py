@@ -14,7 +14,7 @@ class EmbeddingService:
     ):
         self.model_name_or_path = model_name_or_path or os.getenv(
             "EMBEDDING_MODEL_PATH",
-            os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
+            os.getenv("EMBEDDING_MODEL", "nomic-ai/nomic-embed-text-v1.5")
         )
         self._model = None
 
