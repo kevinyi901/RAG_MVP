@@ -14,7 +14,7 @@ MODE="${1:-full}"
 if [ "$MODE" != "full" ] && [ "$MODE" != "quantized" ] && [ "$MODE" != "both" ]; then
     echo "Usage: $0 [full|quantized|both]"
     echo ""
-    echo "  full      - Download full precision models (~56GB)"
+    echo "  full      - Download gpt-oss-20b + mistral-7b-AWQ (~45GB)"
     echo "  quantized - Download gpt-oss-20b + mistral-7b-AWQ (~45GB)"
     echo "  both      - Download all model variants"
     echo ""
@@ -44,9 +44,9 @@ download_full() {
     python3 -c "from huggingface_hub import snapshot_download; snapshot_download('openai/gpt-oss-20b', local_dir='${MODELS_DIR}/gpt-oss-20b', local_dir_use_symlinks=False)"
     echo "✓ gpt-oss-20b"
 
-    echo "Downloading mistral-7b (15GB)..."
-    python3 -c "from huggingface_hub import snapshot_download; snapshot_download('mistralai/Mistral-7B-Instruct-v0.2', local_dir='${MODELS_DIR}/mistral-7b', local_dir_use_symlinks=False)"
-    echo "✓ mistral-7b"
+    echo "Downloading mistral-7b-awq (AWQ 4-bit, ~4GB)..."
+    python3 -c "from huggingface_hub import snapshot_download; snapshot_download('TheBloke/Mistral-7B-Instruct-v0.2-AWQ', local_dir='${MODELS_DIR}/mistral-7b-awq', local_dir_use_symlinks=False)"
+    echo "✓ mistral-7b-awq"
 }
 
 # Download quantized models
@@ -54,20 +54,16 @@ download_full() {
 download_quantized() {
     echo ""
     echo "========================================"
-    echo "Checking Quantized Models in Local Directories"
+    echo "Downloading Quantized Models"
     echo "========================================"
 
-    if [ -d "${MODELS_DIR}/gpt-oss-20b" ]; then
-        echo "✓ gpt-oss-20b found"
-    else
-        echo "ERROR: Local directory ${MODELS_DIR}/gpt-oss-20b not found."
-    fi
+    echo "Downloading gpt-oss-20b (22B MoE, ~41GB BF16, uses ~16GB VRAM with MXFP4)..."
+    python3 -c "from huggingface_hub import snapshot_download; snapshot_download('openai/gpt-oss-20b', local_dir='${MODELS_DIR}/gpt-oss-20b', local_dir_use_symlinks=False)"
+    echo "✓ gpt-oss-20b"
 
-    if [ -d "${MODELS_DIR}/mistral-7b-awq" ]; then
-        echo "✓ mistral-7b-awq found"
-    else
-        echo "ERROR: Local directory ${MODELS_DIR}/mistral-7b-awq not found."
-    fi
+    echo "Downloading mistral-7b-awq (AWQ 4-bit, ~4GB)..."
+    python3 -c "from huggingface_hub import snapshot_download; snapshot_download('TheBloke/Mistral-7B-Instruct-v0.2-AWQ', local_dir='${MODELS_DIR}/mistral-7b-awq', local_dir_use_symlinks=False)"
+    echo "✓ mistral-7b-awq"
 }
 
 # Main
