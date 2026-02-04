@@ -7,6 +7,7 @@
 # WEB FRAMEWORK (FastAPI Backend)
 # ============================================================================
 fastapi==0.109.2           # API framework
+python-multipart==0.0.9    # Form data parsing (FastAPI file uploads)
 uvicorn==0.27.1            # ASGI server for FastAPI
 starlette==0.36.3          # ASGI toolkit (FastAPI dependency)
 h11==0.16.0                # HTTP protocol library (uvicorn dependency)
