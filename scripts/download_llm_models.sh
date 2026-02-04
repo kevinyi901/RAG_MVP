@@ -54,16 +54,20 @@ download_full() {
 download_quantized() {
     echo ""
     echo "========================================"
-    echo "Downloading Quantized Models"
+    echo "Checking Quantized Models in Local Directories"
     echo "========================================"
 
-    echo "Downloading gpt-oss-20b (22B MoE, ~41GB BF16, uses ~16GB VRAM with MXFP4)..."
-    python3 -c "from huggingface_hub import snapshot_download; snapshot_download('openai/gpt-oss-20b', local_dir='${MODELS_DIR}/gpt-oss-20b', local_dir_use_symlinks=False)"
-    echo "✓ gpt-oss-20b"
+    if [ -d "${MODELS_DIR}/gpt-oss-20b" ]; then
+        echo "✓ gpt-oss-20b found"
+    else
+        echo "ERROR: Local directory ${MODELS_DIR}/gpt-oss-20b not found."
+    fi
 
-    echo "Downloading mistral-7b-AWQ (4GB)..."
-    python3 -c "from huggingface_hub import snapshot_download; snapshot_download('TheBloke/Mistral-7B-Instruct-v0.2-AWQ', local_dir='${MODELS_DIR}/mistral-7b-awq', local_dir_use_symlinks=False)"
-    echo "✓ mistral-7b-AWQ"
+    if [ -d "${MODELS_DIR}/mistral-7b-awq" ]; then
+        echo "✓ mistral-7b-awq found"
+    else
+        echo "ERROR: Local directory ${MODELS_DIR}/mistral-7b-awq not found."
+    fi
 }
 
 # Main
