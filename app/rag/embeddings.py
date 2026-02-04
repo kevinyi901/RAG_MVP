@@ -23,7 +23,7 @@ class EmbeddingService:
         """Lazy initialization of sentence-transformers model."""
         if self._model is None:
             from sentence_transformers import SentenceTransformer
-            self._model = SentenceTransformer(self.model_name_or_path)
+            self._model = SentenceTransformer(self.model_name_or_path, trust_remote_code=True)
         return self._model
 
     def embed_text(self, text: str) -> List[float]:
