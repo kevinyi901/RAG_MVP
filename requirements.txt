@@ -40,6 +40,7 @@ pgvector==0.2.5            # pgvector extension for vector similarity search
 # EMBEDDINGS & NLP (Semantic Search)
 # ============================================================================
 sentence-transformers==5.2.2  # Embedding generation from text
+einops==0.8.1                # Tensor operations (nomic-embed-text dependency)
 torch==2.6.0               # ML framework (sentence-transformers dependency)
 transformers==5.0.0        # NLP models (sentence-transformers dependency)
 tokenizers==0.22.2         # Fast tokenizer (transformers dependency)
