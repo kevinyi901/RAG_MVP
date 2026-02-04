@@ -21,10 +21,7 @@ services:
 
   # vLLM LLM server - gpt-oss-20b (22B MoE, ~41GB disk, ~16GB VRAM with MXFP4)
   vllm:
-    build:
-      context: ..
-      dockerfile: containers/Dockerfile.vllm13
-    image: vllm-cuda13:latest
+    image: vllm/vllm-openai:latest
     container_name: rag-vllm
     volumes:
       - ../models:/models:ro
@@ -61,10 +58,7 @@ services:
 
   # vLLM LLM server - mistral:7b-AWQ (quantized, 4-bit)
   vllm-mistral:
-    build:
-      context: ..
-      dockerfile: containers/Dockerfile.vllm13
-    image: vllm-cuda13:latest
+    image: vllm/vllm-openai:latest
     container_name: rag-vllm-mistral
     volumes:
       - ../models:/models:ro
