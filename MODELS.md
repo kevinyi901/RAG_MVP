@@ -2,7 +2,7 @@
 
 ## For Air-Gapped Deployment: Download Models NOW
 
-Since your deployment environment has no internet, download the quantized models on this machine first.
+Since your deployment environment has no internet, download the models on this machine first.
 
 ### Quick Download
 
@@ -10,19 +10,19 @@ Since your deployment environment has no internet, download the quantized models
 # Install HuggingFace CLI
 pip install huggingface-hub
 
-# Download quantized models (~14GB total, ~15 min)
+# Download models (~17GB total)
 ./scripts/download_llm_models.sh quantized
 
 # Verify
 du -sh models/
-# Should show: ~14GB total
+# Should show: ~17GB total
 ```
 
 ### What Gets Downloaded
 
 ```
 models/
-├── gpt-oss-20b-awq/    (~10GB)
+├── gpt-oss-20b/        (~13GB, built-in MXFP4 quantization)
 │   ├── model-*.safetensors
 │   ├── config.json
 │   └── ...
@@ -56,7 +56,7 @@ open http://localhost:8501
 
 ### Model Specs
 
-- **gpt-oss-20b-awq**: 4-bit quantized, 10GB, ~50 tokens/sec
+- **gpt-oss-20b**: 22B MoE (3.6B active), built-in MXFP4, ~13GB, fits 16GB VRAM
 - **mistral-7b-awq**: 4-bit quantized, 4GB, ~80 tokens/sec
 - **Both fit on**: A40 (48GB) with headroom
 
@@ -71,15 +71,15 @@ df -h           # Check disk space
 **Network timeout**
 ```bash
 # Resume with increased timeout
-huggingface-cli download TheBloke/gpt-oss-20B-AWQ \
-  --local-dir ./models/gpt-oss-20b-awq \
+huggingface-cli download openai/gpt-oss-20b \
+  --local-dir ./models/gpt-oss-20b \
   --local-dir-use-symlinks False
 ```
 
 **Model not loading in vLLM**
 ```bash
 # Check models are readable
-ls -lh models/gpt-oss-20b-awq/model-*.safetensors
+ls -lh models/gpt-oss-20b/model-*.safetensors
 chmod -R 755 models/
 ```
 

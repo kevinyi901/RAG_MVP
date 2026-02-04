@@ -39,27 +39,28 @@ download_full() {
     echo "========================================"
     echo "Downloading Full Precision Models"
     echo "========================================"
-    
-    echo "Downloading gpt-oss-20b (40GB)..."
-    python3 -c "from huggingface_hub import snapshot_download; snapshot_download('gpt-oss/gpt-oss-20b', local_dir='${MODELS_DIR}/gpt-oss-20b', local_dir_use_symlinks=False)"
+
+    echo "Downloading gpt-oss-20b (22B MoE, ~13GB with built-in MXFP4)..."
+    python3 -c "from huggingface_hub import snapshot_download; snapshot_download('openai/gpt-oss-20b', local_dir='${MODELS_DIR}/gpt-oss-20b', local_dir_use_symlinks=False)"
     echo "✓ gpt-oss-20b"
-    
+
     echo "Downloading mistral-7b (15GB)..."
     python3 -c "from huggingface_hub import snapshot_download; snapshot_download('mistralai/Mistral-7B-Instruct-v0.2', local_dir='${MODELS_DIR}/mistral-7b', local_dir_use_symlinks=False)"
     echo "✓ mistral-7b"
 }
 
-# Download 4-bit quantized models
+# Download quantized models
+# gpt-oss-20b has built-in MXFP4 quantization (fits 16GB VRAM), no separate AWQ needed
 download_quantized() {
     echo ""
     echo "========================================"
-    echo "Downloading 4-bit Quantized Models"
+    echo "Downloading Quantized Models"
     echo "========================================"
-    
-    echo "Downloading gpt-oss-20b-AWQ (10GB)..."
-    python3 -c "from huggingface_hub import snapshot_download; snapshot_download('TheBloke/gpt-oss-20B-AWQ', local_dir='${MODELS_DIR}/gpt-oss-20b-awq', local_dir_use_symlinks=False)"
-    echo "✓ gpt-oss-20b-AWQ"
-    
+
+    echo "Downloading gpt-oss-20b (22B MoE, ~13GB, built-in MXFP4 quantization)..."
+    python3 -c "from huggingface_hub import snapshot_download; snapshot_download('openai/gpt-oss-20b', local_dir='${MODELS_DIR}/gpt-oss-20b', local_dir_use_symlinks=False)"
+    echo "✓ gpt-oss-20b"
+
     echo "Downloading mistral-7b-AWQ (4GB)..."
     python3 -c "from huggingface_hub import snapshot_download; snapshot_download('TheBloke/Mistral-7B-Instruct-v0.2-AWQ', local_dir='${MODELS_DIR}/mistral-7b-awq', local_dir_use_symlinks=False)"
     echo "✓ mistral-7b-AWQ"

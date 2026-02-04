@@ -19,7 +19,7 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # vLLM LLM server - gpt-oss-20b BF16 (13GB) or AWQ quantized (6GB)
+  # vLLM LLM server - gpt-oss-20b (22B MoE, built-in MXFP4 quantization, ~13GB)
   vllm:
     image: localhost/rag-vllm:latest
     container_name: rag-vllm
@@ -27,7 +27,6 @@ services:
       - ../models:/models:ro
     ports:
       - "8000:8000"
-    # For BF16 (full precision, 13GB):
     command:
       - "--model"
       - "/models/gpt-oss-20b"
@@ -37,18 +36,6 @@ services:
       - "0.0.0.0"
       - "--port"
       - "8000"
-    # For AWQ quantized (4-bit, 6GB), uncomment below and comment out command above:
-    # command:
-    #   - "--model"
-    #   - "/models/gpt-oss-20b-awq"
-    #   - "--load-format"
-    #   - "awq"
-    #   - "--served-model-name"
-    #   - "gpt-oss-20b"
-    #   - "--host"
-    #   - "0.0.0.0"
-    #   - "--port"
-    #   - "8000"
     # Uncomment for NVIDIA GPU (Linux/EC2 only):
     # deploy:
     #   resources:

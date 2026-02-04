@@ -56,7 +56,7 @@ This document provides deployment instructions and security information for the 
 
 | Model | Size | Download Time | Source |
 |-------|------|---------------|--------|
-| gpt-oss-20b-AWQ | ~10GB | 5-10 min | HuggingFace: TheBloke/gpt-oss-20B-AWQ |
+| gpt-oss-20b | ~13GB | 5-10 min | HuggingFace: openai/gpt-oss-20b |
 | mistral-7b-AWQ | ~4GB | 2-3 min | HuggingFace: TheBloke/Mistral-7B-Instruct-v0.2-AWQ |
 
 ### Download Instructions
@@ -70,9 +70,9 @@ pip install huggingface-hub
 ```bash
 mkdir -p models
 
-# gpt-oss-20b-AWQ (10GB)
-huggingface-cli download TheBloke/gpt-oss-20B-AWQ \
-  --local-dir ./models/gpt-oss-20b-awq \
+# gpt-oss-20b (22B MoE with built-in MXFP4, ~13GB)
+huggingface-cli download openai/gpt-oss-20b \
+  --local-dir ./models/gpt-oss-20b \
   --local-dir-use-symlinks False
 
 # mistral-7b-AWQ (4GB)
@@ -95,7 +95,7 @@ After downloading, verify file integrity:
 find ./models -type f -name "*.safetensors" -o -name "*.bin" | head -20
 
 # Check size
-du -sh ./models/gpt-oss-20b-awq
+du -sh ./models/gpt-oss-20b
 du -sh ./models/mistral-7b-awq
 ```
 
@@ -172,7 +172,7 @@ docker tag vllm/vllm-openai:latest localhost/rag-vllm:latest
 mkdir -p offline_packages/{images,models}
 
 # 6. Copy models
-cp -r models/gpt-oss-20b-awq offline_packages/models/
+cp -r models/gpt-oss-20b offline_packages/models/
 cp -r models/mistral-7b-awq offline_packages/models/
 
 # 7. Export container images
@@ -196,7 +196,7 @@ Transfer the following to the air-gapped system:
 ```
 RAG_MVP/
 ├── models/
-│   ├── gpt-oss-20b-awq/
+│   ├── gpt-oss-20b/
 │   └── mistral-7b-awq/
 ├── containers/
 │   ├── docker-compose.dev.yml
@@ -268,8 +268,8 @@ podman-compose -f containers/podman-compose.yml ps
 After downloading models, compute checksums for security verification:
 
 ```bash
-# For gpt-oss-20b-awq
-find ./models/gpt-oss-20b-awq -type f -exec sha256sum {} \; > gpt-oss-20b.sha256
+# For gpt-oss-20b
+find ./models/gpt-oss-20b -type f -exec sha256sum {} \; > gpt-oss-20b.sha256
 
 # For mistral-7b-awq
 find ./models/mistral-7b-awq -type f -exec sha256sum {} \; > mistral-7b.sha256
@@ -311,7 +311,7 @@ TOP_K_RERANK=5           # Number of top results after ranking
 - Check GPU VRAM (need 24GB+ for gpt-oss-20b)
 
 ### Models Not Found
-- Verify models are in `./models/gpt-oss-20b-awq` and `./models/mistral-7b-awq`
+- Verify models are in `./models/gpt-oss-20b` and `./models/mistral-7b-awq`
 - Check compose volumes are mounted correctly (`../models:/models:ro`)
 - Ensure model file permissions are readable
 - All compose files use local images (`localhost/rag-*:latest`)
