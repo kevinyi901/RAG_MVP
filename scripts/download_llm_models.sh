@@ -14,9 +14,9 @@ MODE="${1:-full}"
 if [ "$MODE" != "full" ] && [ "$MODE" != "quantized" ] && [ "$MODE" != "both" ]; then
     echo "Usage: $0 [full|quantized|both]"
     echo ""
-    echo "  full      - Download full precision models (~55GB)"
-    echo "  quantized - Download 4-bit quantized models (~14GB)"
-    echo "  both      - Download both versions (~69GB)"
+    echo "  full      - Download full precision models (~56GB)"
+    echo "  quantized - Download gpt-oss-20b + mistral-7b-AWQ (~45GB)"
+    echo "  both      - Download all model variants"
     echo ""
     echo "For A40 (48GB VRAM): Use 'full'"
     echo "For RTX 3090/4090 (24GB VRAM): Use 'quantized'"
@@ -40,7 +40,7 @@ download_full() {
     echo "Downloading Full Precision Models"
     echo "========================================"
 
-    echo "Downloading gpt-oss-20b (22B MoE, ~13GB with built-in MXFP4)..."
+    echo "Downloading gpt-oss-20b (22B MoE, ~41GB BF16, uses ~16GB VRAM with MXFP4)..."
     python3 -c "from huggingface_hub import snapshot_download; snapshot_download('openai/gpt-oss-20b', local_dir='${MODELS_DIR}/gpt-oss-20b', local_dir_use_symlinks=False)"
     echo "✓ gpt-oss-20b"
 
@@ -57,7 +57,7 @@ download_quantized() {
     echo "Downloading Quantized Models"
     echo "========================================"
 
-    echo "Downloading gpt-oss-20b (22B MoE, ~13GB, built-in MXFP4 quantization)..."
+    echo "Downloading gpt-oss-20b (22B MoE, ~41GB BF16, uses ~16GB VRAM with MXFP4)..."
     python3 -c "from huggingface_hub import snapshot_download; snapshot_download('openai/gpt-oss-20b', local_dir='${MODELS_DIR}/gpt-oss-20b', local_dir_use_symlinks=False)"
     echo "✓ gpt-oss-20b"
 

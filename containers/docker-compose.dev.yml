@@ -19,7 +19,7 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # vLLM LLM server - gpt-oss-20b (22B MoE, built-in MXFP4 quantization, ~13GB)
+  # vLLM LLM server - gpt-oss-20b (22B MoE, ~41GB disk, ~16GB VRAM with MXFP4)
   vllm:
     image: localhost/rag-vllm:latest
     container_name: rag-vllm
@@ -36,14 +36,15 @@ services:
       - "0.0.0.0"
       - "--port"
       - "8000"
-    # Uncomment for NVIDIA GPU (Linux/EC2 only):
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
+      - "--gpu-memory-utilization"
+      - "0.70"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 10s
@@ -71,14 +72,15 @@ services:
       - "0.0.0.0"
       - "--port"
       - "8000"
-    # Uncomment for NVIDIA GPU (Linux only):
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
+      - "--gpu-memory-utilization"
+      - "0.25"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 10s

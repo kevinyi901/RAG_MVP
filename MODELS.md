@@ -10,19 +10,19 @@ Since your deployment environment has no internet, download the models on this m
 # Install HuggingFace CLI
 pip install huggingface-hub
 
-# Download models (~17GB total)
+# Download models (~45GB total)
 ./scripts/download_llm_models.sh quantized
 
 # Verify
 du -sh models/
-# Should show: ~17GB total
+# Should show: ~45GB total
 ```
 
 ### What Gets Downloaded
 
 ```
 models/
-├── gpt-oss-20b/        (~13GB, built-in MXFP4 quantization)
+├── gpt-oss-20b/        (~41GB on disk, ~16GB VRAM with MXFP4)
 │   ├── model-*.safetensors
 │   ├── config.json
 │   └── ...
@@ -51,12 +51,12 @@ open http://localhost:8501
 2. **Commit code to git** (models in .gitignore, not committed)
 3. **Transfer to air-gapped machine:**
    - Code directory (from git)
-   - `models/` directory (local, ~14GB)
+   - `models/` directory (local, ~45GB)
 4. **Deploy:** See DEPLOYMENT.md
 
 ### Model Specs
 
-- **gpt-oss-20b**: 22B MoE (3.6B active), built-in MXFP4, ~13GB, fits 16GB VRAM
+- **gpt-oss-20b**: 22B MoE (3.6B active), ~41GB on disk, ~16GB VRAM (MXFP4 at inference)
 - **mistral-7b-awq**: 4-bit quantized, 4GB, ~80 tokens/sec
 - **Both fit on**: A40 (48GB) with headroom
 

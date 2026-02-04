@@ -24,7 +24,7 @@ This document provides deployment instructions and security information for the 
 - **GPU**: NVIDIA RTX 3090 (24GB VRAM) or equivalent
 - **CPU**: 8+ cores
 - **RAM**: 32GB minimum
-- **Storage**: 100GB+ (55GB models + 20GB database + buffers)
+- **Storage**: 100GB+ (45GB models + 20GB database + buffers)
 - **Network**: For initial model download (can be air-gapped after)
 
 ### Development Requirements
@@ -45,18 +45,16 @@ This document provides deployment instructions and security information for the 
 ### Recommended: 4-bit Quantized Models (AWQ)
 
 **Advantages:**
-- Smaller downloads: ~14GB total vs 55GB full precision
-- Smaller storage footprint
-- Faster transfer for air-gapped deployment
-- Still excellent inference quality
-- ~10% speed penalty (40-80 tokens/sec vs 50-100)
-- Fits easily on all GPUs
+- Native MXFP4 quantization applied at inference time by vLLM
+- gpt-oss-20b: ~41GB on disk, but only ~16GB VRAM at runtime
+- mistral-7b-AWQ: ~4GB on disk and VRAM
+- Fits on RTX 3090/4090 (24GB) and A10G (23GB) with headroom
 
 ### 4-bit Quantized Models (AWQ)
 
 | Model | Size | Download Time | Source |
 |-------|------|---------------|--------|
-| gpt-oss-20b | ~13GB | 5-10 min | HuggingFace: openai/gpt-oss-20b |
+| gpt-oss-20b | ~41GB (disk), ~16GB VRAM | 5-10 min | HuggingFace: openai/gpt-oss-20b |
 | mistral-7b-AWQ | ~4GB | 2-3 min | HuggingFace: TheBloke/Mistral-7B-Instruct-v0.2-AWQ |
 
 ### Download Instructions
@@ -70,7 +68,7 @@ pip install huggingface-hub
 ```bash
 mkdir -p models
 
-# gpt-oss-20b (22B MoE with built-in MXFP4, ~13GB)
+# gpt-oss-20b (22B MoE, ~41GB on disk, ~16GB VRAM with MXFP4)
 huggingface-cli download openai/gpt-oss-20b \
   --local-dir ./models/gpt-oss-20b \
   --local-dir-use-symlinks False
