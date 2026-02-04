@@ -21,26 +21,31 @@ This document provides deployment instructions and security information for the 
 
 ### Minimum Production Requirements
 - **OS**: RHEL 8.10+
-- **GPU**: NVIDIA RTX 3090 (24GB VRAM) or equivalent
+- **GPU**: NVIDIA A10G (23GB), A40 (48GB), or RTX 3090/4090 (24GB)
+- **NVIDIA Driver**: 570.x from CUDA repo (NOT elrepo — 580.x is incompatible)
 - **CPU**: 8+ cores
 - **RAM**: 32GB minimum
-- **Storage**: 100GB+ (45GB models + 20GB database + buffers)
+- **Storage**: 100GB+ (45GB models + 20GB Docker images + database + buffers)
 - **Network**: For initial model download (can be air-gapped after)
 
-### Development Requirements
-- Docker or Podman
+### Development Requirements (EC2 Spot Instance)
+- RHEL 8.10 GPU instance (e.g., g5.xlarge with A10G)
+- NVIDIA driver 570.x from CUDA repo
+- Docker with NVIDIA Container Toolkit
 - Python 3.12+
 - Internet access (for initial model downloads)
+- AWS security group: inbound ports 22 (SSH), 8501 (Streamlit), 8001 (API), 8000 (vLLM)
 
 ## Model Download
 
 ### GPU Memory Requirements
 
-| GPU | VRAM | Quantized 4-bit |
-|-----|------|-----------------|
-| A40 | 48GB | ✅ Both models + headroom |
-| RTX 3090 | 24GB | ✅ Both models |
-| RTX 4090 | 24GB | ✅ Both models |
+| GPU | VRAM | gpt-oss-20b (70%) | mistral-7b-awq (25%) | Status |
+|-----|------|-------------------|---------------------|--------|
+| A10G | 23GB | ~16GB | ~5.7GB | Both models fit |
+| A40 | 48GB | ~33GB | ~12GB | Both models + headroom |
+| RTX 3090 | 24GB | ~16.8GB | ~6GB | Both models fit |
+| RTX 4090 | 24GB | ~16.8GB | ~6GB | Both models fit |
 
 ### Recommended: 4-bit Quantized Models (AWQ)
 
@@ -81,7 +86,7 @@ huggingface-cli download TheBloke/Mistral-7B-Instruct-v0.2-AWQ \
 
 **Or use the script:**
 ```bash
-./scripts/download_llm_models.sh quantized
+bash scripts/download_llm_models.sh
 ```
 
 ### Verify Model Downloads
@@ -97,28 +102,62 @@ du -sh ./models/gpt-oss-20b
 du -sh ./models/mistral-7b-awq
 ```
 
-## Development Deployment
+## Development Deployment (EC2 Spot Instance)
 
-### Using Docker Compose (Recommended)
+### 1. EC2 Instance Setup
 
 ```bash
-# 1. Clone repository
+# Install NVIDIA driver 570 from CUDA repo (NOT elrepo — 580.x causes CUDA Error 803)
+sudo dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo
+sudo dnf module install nvidia-driver:570 -y
+
+# Install NVIDIA Container Toolkit
+curl -s -L https://nvidia.github.io/libnvidia-container/stable/rpm/nvidia-container-toolkit.repo | \
+  sudo tee /etc/yum.repos.d/nvidia-container-toolkit.repo
+sudo dnf install -y nvidia-container-toolkit
+
+# Install and configure Docker
+sudo dnf install -y docker
+sudo systemctl enable --now docker
+sudo usermod -aG docker ec2-user
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+
+# Reboot to load the driver
+sudo reboot
+```
+
+### 2. Verify GPU Access After Reboot
+
+```bash
+nvidia-smi                         # Should show driver 570.x, CUDA 12.8
+docker run --rm --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi
+```
+
+### 3. Deploy the Stack
+
+```bash
 cd RAG_MVP
 
-# 2. Download models (see "Model Download" section above)
-# Models should be in ./models/ directory
+# Download models
+pip install huggingface-hub
+bash scripts/download_llm_models.sh
 
-# 3. Start the stack
+# Pull vLLM image and start
+docker pull vllm/vllm-openai:latest
 docker compose -f containers/docker-compose.dev.yml up -d
 
-# 4. Check status
+# vLLM takes a few minutes to load models into GPU memory.
+# Wait for healthy, then re-run to start dependent services:
+docker compose -f containers/docker-compose.dev.yml up -d
+
+# Check status
 docker compose -f containers/docker-compose.dev.yml ps
 
-# 5. Access services
-# - Streamlit UI: http://localhost:8501
-# - FastAPI Backend: http://localhost:8001
-# - vLLM API: http://localhost:8000
-# - PostgreSQL: localhost:5432
+# Access services (requires EC2 security group inbound rules):
+# - Streamlit UI: http://<ec2-public-ip>:8501
+# - FastAPI Backend: http://<ec2-public-ip>:8001
+# - vLLM API: http://<ec2-public-ip>:8000
 ```
 
 ### Verify Deployment
@@ -149,8 +188,8 @@ docker compose -f containers/docker-compose.dev.yml down -v
 
 ```bash
 # 1. Download all models (see "Model Download" section)
-./scripts/download_llm_models.sh quantized
-# Models will be saved to ./models/gpt-oss-20b-awq and ./models/mistral-7b-awq
+bash scripts/download_llm_models.sh
+# Models will be saved to ./models/gpt-oss-20b and ./models/mistral-7b-awq
 
 # 2. Download Python wheels for air-gapped install
 ./scripts/download_wheels.sh
@@ -303,16 +342,36 @@ TOP_K_RERANK=5           # Number of top results after ranking
 
 ## Troubleshooting
 
+### CUDA Error 803: Unsupported Display Driver / CUDA Driver Combination
+
+This means the NVIDIA driver is incompatible with the CUDA runtime in the vLLM container.
+
+- **Cause**: Driver 580.x (from elrepo) is too new for vLLM's CUDA 12.9 runtime
+- **Fix**: Install driver 570.x from the NVIDIA CUDA repo:
+  ```bash
+  sudo dnf remove nvidia-x11-drv nvidia-x11-drv-libs kmod-nvidia -y
+  sudo dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo
+  sudo dnf module install nvidia-driver:570 -y
+  sudo reboot
+  ```
+- **Verify**: `nvidia-smi` should show driver 570.x, CUDA 12.8
+
 ### Out of Memory
 - Reduce `TOP_K_RETRIEVAL` in .env
 - Ensure 32GB+ RAM available
-- Check GPU VRAM (need 24GB+ for gpt-oss-20b)
+- Check GPU VRAM usage: `nvidia-smi`
+- Both models use 95% of GPU memory (70% + 25%) — this is expected
 
 ### Models Not Found
 - Verify models are in `./models/gpt-oss-20b` and `./models/mistral-7b-awq`
 - Check compose volumes are mounted correctly (`../models:/models:ro`)
-- Ensure model file permissions are readable
-- All compose files use local images (`localhost/rag-*:latest`)
+- Ensure model file permissions are readable: `sudo chmod -R 755 models/`
+- If models directory was created by Docker (root-owned): `sudo rm -rf models && mkdir models`
+
+### vLLM Takes Too Long to Start
+- Model loading into GPU memory can exceed the 120s health check start period
+- Run `docker compose -f containers/docker-compose.dev.yml up -d` again after vLLM is healthy
+- Monitor with: `docker logs -f rag-vllm`
 
 ### Database Connection Failed
 - Verify PostgreSQL container is running: `docker ps`
@@ -354,9 +413,11 @@ For security issues, please:
 
 ---
 
-**Last Updated**: 2026-02-02
-**Version**: 1.1
+**Last Updated**: 2026-02-04
+**Version**: 1.2
 **Python**: 3.12.11
 **PostgreSQL**: 16.8
 **Streamlit**: 1.51.0
+**vLLM**: latest (CUDA 12.9)
+**NVIDIA Driver**: 570.x (from CUDA repo)
 **Status**: Ready for air-gapped production deployment

@@ -37,13 +37,16 @@ A Retrieval-Augmented Generation (RAG) system designed for air-gapped deployment
 
 ### Target Environment (Air-Gapped)
 - **OS**: RHEL 8.10
-- **GPU**: NVIDIA A40 (48GB VRAM) or RTX 3090 (24GB - requires quantization)
+- **GPU**: NVIDIA A10G (23GB), A40 (48GB), or RTX 3090/4090 (24GB)
+- **NVIDIA Driver**: 570.x from CUDA repo (NOT elrepo) — supports CUDA 12.8
 - **RAM**: 32GB minimum (64GB recommended)
 - **Storage**: 100GB+ for full models, 50GB+ for quantized
-- **Container Runtime**: Podman 4.x
+- **Container Runtime**: Podman 4.x or Docker with NVIDIA Container Toolkit
 
-### Development Environment
-- Docker or Podman with GPU support
+### Development Environment (EC2 Spot Instance)
+- RHEL 8.10 GPU instance (e.g., g5.xlarge with A10G)
+- NVIDIA driver 570.x from CUDA repo
+- Docker with NVIDIA Container Toolkit
 - Internet access for initial setup
 
 ## Software Versions
@@ -51,38 +54,68 @@ A Retrieval-Augmented Generation (RAG) system designed for air-gapped deployment
 | Component | Version |
 |-----------|---------|
 | Python | 3.12.11 |
-| vLLM | latest (with quantization support) |
+| vLLM | latest (CUDA 12.9, with quantization support) |
 | PostgreSQL | 16.8 |
 | pgvector | 0.2.5 |
 | FastAPI | 0.109.x |
 | Streamlit | 1.51.0 |
-| GPU Support | CUDA 11.8+ (A40 native) |
+| NVIDIA Driver | 570.x (from CUDA repo, supports CUDA 12.8) |
+| CUDA (container) | 12.9 (bundled in vLLM image) |
 
-## Quick Start (Development)
+## Quick Start (Development on EC2)
 
-### Using Docker
+### 1. EC2 Instance Setup (RHEL 8.10 with GPU)
 
 ```bash
-# Clone the repository
+# Install NVIDIA driver 570 from CUDA repo (NOT elrepo — 580.x is incompatible with vLLM)
+sudo dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo
+sudo dnf module install nvidia-driver:570 -y
+
+# Install NVIDIA Container Toolkit
+curl -s -L https://nvidia.github.io/libnvidia-container/stable/rpm/nvidia-container-toolkit.repo | \
+  sudo tee /etc/yum.repos.d/nvidia-container-toolkit.repo
+sudo dnf install -y nvidia-container-toolkit
+
+# Install and configure Docker
+sudo dnf install -y docker
+sudo systemctl enable --now docker
+sudo usermod -aG docker ec2-user
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+
+# Reboot to load the driver
+sudo reboot
+```
+
+### 2. Verify GPU Access
+
+```bash
+nvidia-smi                         # Should show driver 570.x, CUDA 12.8
+docker run --rm --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi
+```
+
+### 3. Download Models and Start
+
+```bash
 cd RAG_MVP
+pip install huggingface-hub
+bash scripts/download_llm_models.sh
 
-# Copy environment file
-cp .env.example .env
-
-# Start the stack
+docker pull vllm/vllm-openai:latest
 docker compose -f containers/docker-compose.dev.yml up -d
 
-# Access the UI
-open http://localhost:8501
+# vLLM takes a few minutes to load models — wait for healthy, then re-run:
+docker compose -f containers/docker-compose.dev.yml up -d
 ```
+
+### 4. Access the UI
+
+Open `http://<ec2-public-ip>:8501` (requires security group inbound rule for port 8501).
 
 ### Using Podman
 
 ```bash
-# Start with Podman
 podman-compose -f containers/podman-compose.dev.yml up -d
-
-# Check status
 podman-compose -f containers/podman-compose.dev.yml ps
 ```
 
@@ -272,18 +305,32 @@ RAG_MVP/
 # Check NVIDIA driver
 nvidia-smi
 
-# Check CDI configuration
+# Verify Docker can access GPU
+docker run --rm --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi
+
+# Check CDI configuration (Podman)
 nvidia-ctk cdi list
 
-# Regenerate CDI spec
+# Regenerate CDI spec (Podman)
 sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
 ```
+
+### CUDA Driver Mismatch (Error 803)
+
+If you see `system has unsupported display driver / cuda driver combination`:
+- **Cause**: Driver 580.x (from elrepo) is incompatible with vLLM's CUDA 12.9 runtime
+- **Fix**: Install driver 570.x from the NVIDIA CUDA repo instead:
+  ```bash
+  sudo dnf remove nvidia-x11-drv nvidia-x11-drv-libs kmod-nvidia -y
+  sudo dnf module install nvidia-driver:570 -y
+  sudo reboot
+  ```
 
 ### vLLM Connection Issues
 
 ```bash
 # Check vLLM logs
-podman logs rag-vllm
+docker logs rag-vllm --tail 50
 
 # Test vLLM API
 curl http://localhost:8000/health

@@ -11,7 +11,7 @@ Since your deployment environment has no internet, download the models on this m
 pip install huggingface-hub
 
 # Download models (~45GB total)
-./scripts/download_llm_models.sh quantized
+bash scripts/download_llm_models.sh
 
 # Verify
 du -sh models/
@@ -32,22 +32,28 @@ models/
     └── ...
 ```
 
-### For Development (Internet Available)
+### For Development (EC2 with Internet)
 
 ```bash
+# Pull vLLM image
+docker pull vllm/vllm-openai:latest
+
 # Start containers with models
+docker compose -f containers/docker-compose.dev.yml up -d
+
+# vLLM takes a few minutes to load — wait, then re-run up -d
 docker compose -f containers/docker-compose.dev.yml up -d
 
 # Check vLLM is running
 curl http://localhost:8000/health
 
-# Access UI
-open http://localhost:8501
+# Access UI (requires EC2 security group port 8501 open)
+open http://<ec2-public-ip>:8501
 ```
 
 ### For Air-Gapped Deployment
 
-1. **Download models here:** `./scripts/download_llm_models.sh quantized`
+1. **Download models here:** `bash scripts/download_llm_models.sh`
 2. **Commit code to git** (models in .gitignore, not committed)
 3. **Transfer to air-gapped machine:**
    - Code directory (from git)
@@ -58,7 +64,7 @@ open http://localhost:8501
 
 - **gpt-oss-20b**: 22B MoE (3.6B active), ~41GB on disk, ~16GB VRAM (MXFP4 at inference)
 - **mistral-7b-awq**: 4-bit quantized, 4GB, ~80 tokens/sec
-- **Both fit on**: A40 (48GB) with headroom
+- **Both fit on**: A10G (23GB), A40 (48GB), RTX 3090/4090 (24GB) — combined 0.70 + 0.25 GPU memory utilization
 
 ### Troubleshooting
 
