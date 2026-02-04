@@ -21,7 +21,10 @@ services:
 
   # vLLM LLM server - gpt-oss-20b (22B MoE, ~41GB disk, ~16GB VRAM with MXFP4)
   vllm:
-    image: localhost/rag-vllm:latest
+    build:
+      context: ..
+      dockerfile: containers/Dockerfile.vllm13
+    image: vllm-cuda13:latest
     container_name: rag-vllm
     volumes:
       - ../models:/models:ro
@@ -30,6 +33,8 @@ services:
     command:
       - "--model"
       - "/models/gpt-oss-20b"
+      - "--repo-type"
+      - "local"
       - "--served-model-name"
       - "gpt-oss-20b"
       - "--host"
@@ -38,6 +43,7 @@ services:
       - "8000"
       - "--gpu-memory-utilization"
       - "0.70"
+
     deploy:
       resources:
         reservations:
@@ -55,7 +61,10 @@ services:
 
   # vLLM LLM server - mistral:7b-AWQ (quantized, 4-bit)
   vllm-mistral:
-    image: localhost/rag-vllm:latest
+    build:
+      context: ..
+      dockerfile: containers/Dockerfile.vllm13
+    image: vllm-cuda13:latest
     container_name: rag-vllm-mistral
     volumes:
       - ../models:/models:ro
@@ -64,6 +73,8 @@ services:
     command:
       - "--model"
       - "/models/mistral-7b-awq"
+      - "--repo-type"
+      - "local"
       - "--load-format"
       - "awq"
       - "--served-model-name"
@@ -74,6 +85,7 @@ services:
       - "8000"
       - "--gpu-memory-utilization"
       - "0.25"
+
     deploy:
       resources:
         reservations:
