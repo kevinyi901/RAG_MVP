@@ -66,7 +66,7 @@ services:
       - "--load-format"
       - "awq"
       - "--served-model-name"
-      - "mistral:7b"
+      - "mistral-7b"
       - "--host"
       - "0.0.0.0"
       - "--port"
@@ -105,6 +105,7 @@ services:
       - VLLM_HOST=http://vllm:8000
       - EMBEDDING_MODEL=nomic-ai/nomic-embed-text-v1.5
       - LLM_MODEL=gpt-oss-20b
+      - VLLM_MODEL_HOSTS=mistral-7b=http://vllm-mistral:8000
     depends_on:
       postgres:
         condition: service_healthy
