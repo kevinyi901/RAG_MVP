@@ -21,10 +21,12 @@ WORKDIR /app
 
 # Copy requirements and pre-downloaded wheels for air-gapped install
 COPY requirements.txt .
-COPY wheels/ /wheels/
+#COPY wheels/ /wheels/
 
 # Install Python dependencies from local wheels (air-gapped)
-RUN pip install --no-cache-dir --no-index --find-links /wheels/ -r requirements.txt
+#RUN pip install --no-cache-dir --no-index --find-links /wheels/ -r requirements.txt
+
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY app/ .
