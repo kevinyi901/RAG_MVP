@@ -54,13 +54,13 @@ A Retrieval-Augmented Generation (RAG) system designed for air-gapped deployment
 | Component | Version |
 |-----------|---------|
 | Python | 3.12.11 |
-| vLLM | latest (CUDA 12.9, with quantization support) |
+| vLLM | latest (CUDA 12.8, with quantization support) |
 | PostgreSQL | 16.8 |
 | pgvector | 0.2.5 |
 | FastAPI | 0.109.x |
 | Streamlit | 1.51.0 |
 | NVIDIA Driver | 570.x (from CUDA repo, supports CUDA 12.8) |
-| CUDA (container) | 12.9 (bundled in vLLM image) |
+| CUDA (container) | 12.8 (bundled in vLLM image) |
 
 ## Quick Start (Development on EC2)
 
