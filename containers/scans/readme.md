@@ -1,13 +1,21 @@
 # container overview
 
-4 containers: 
+4 containers from docker-compose-dev
 
 vllm/vllm-openai       latest            aec43437a777 
 pgvector/pgvector      pg16              8ed3192326bb
 containers-streamlit   latest            31017dea5099
 containers-api         latest            bc94bb2b097f
 
+became 3 containers in docker-compose-staging  (after patching)
 
+image: vllm/vllm-openai:latest-patched
+image: containerfile-patched
+image: pgvector/pgvector:pg16
+
+Zero high or critical findings. 
+
+Details below, or just skip to 'Deployment-Staging-Quickstart' to run the app
 
 # vllm/vllm-openai 
 
@@ -47,9 +55,15 @@ This is a really arcane error and likely not worth the squeeze to mitigate.
 
 we were able to patch the upstream python and re-build the app containers, and update docker-compose-staging to work .. verified working. 
 
-so we now have
+python                  3.12.11-slim-patched
+then became 
+containerfile-patched
+
+and now we have 
 
 containers-patch-report.html
+
+so we now have zero critical or high findings. 
 
 zero. that's nice.
 
