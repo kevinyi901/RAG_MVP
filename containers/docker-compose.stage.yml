@@ -1,0 +1,139 @@
+services:
+  # PostgreSQL with pgvector extension
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: rag-postgres
+    environment:
+      POSTGRES_USER: rag
+      POSTGRES_PASSWORD: rag_password
+      POSTGRES_DB: ragdb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag -d ragdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # vLLM LLM server - gpt-oss-20b (22B MoE, ~41GB disk, ~16GB VRAM with MXFP4)
+  vllm:
+    image: vllm/vllm-openai:latest-patched
+    container_name: rag-vllm
+    volumes:
+      - ../models:/models:ro
+    ports:
+      - "8000:8000"
+    command:
+      - "/models/gpt-oss-20b"
+      - "--served-model-name"
+      - "gpt-oss-20b"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8000"
+      - "--gpu-memory-utilization"
+      - "0.70"
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      start_period: 120s
+      retries: 10
+    restart: unless-stopped
+
+  # vLLM LLM server - mistral:7b-AWQ (quantized, 4-bit)
+  vllm-mistral:
+    image: vllm/vllm-openai:latest-patched
+    container_name: rag-vllm-mistral
+    volumes:
+      - ../models:/models:ro
+    ports:
+      - "8002:8000"
+    command:
+      - "/models/mistral-7b-awq"
+      - "--load-format"
+      - "awq"
+      - "--served-model-name"
+      - "mistral-7b"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8000"
+      - "--gpu-memory-utilization"
+      - "0.25"
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      start_period: 120s
+      retries: 10
+    restart: unless-stopped
+
+  # FastAPI backend
+  api:
+    image: containerfile-patched
+    container_name: rag-api
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ../app:/app
+    ports:
+      - "8001:8000"
+    environment:
+      - DATABASE_URL=postgresql://rag:rag_password@postgres:5432/ragdb
+      - VLLM_HOST=http://vllm:8000
+      - EMBEDDING_MODEL=nomic-ai/nomic-embed-text-v1.5
+      - LLM_MODEL=gpt-oss-20b
+      - VLLM_MODEL_HOSTS=mistral-7b=http://vllm-mistral:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      vllm:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Streamlit frontend
+  streamlit:
+    image: containerfile-patched
+    container_name: rag-streamlit
+    command: streamlit run streamlit_app.py --server.port 8501 --server.address 0.0.0.0
+    volumes:
+      - ../app:/app
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://api:8000
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  default:
+    name: rag-network
