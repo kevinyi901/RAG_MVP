@@ -6,6 +6,36 @@ per
 
 https://www.trmc.osd.mil/bitbucket/projects/JMIE/repos/data-dept/browse/docker/security.md
 
+
+# semi-automated / v1
+
+I'm used to mitigating everything manually (per below /v0)
+
+yet then in revisiting, attempted to automate. and it went very well! Allowed me to re-do a week of work in a day, and ended up with better results. 
+
+This is the first time I used [https://project-copacetic.github.io/copacetic/website/quick-start](copacetic) to auto-patch upstream OS images like so:
+
+`export IMAGE=vllm/vllm-openai:latest`
+
+` trivy image --vuln-type os --ignore-unfixed -f json -o vllm-report.json --severity HIGH,CRITICAL $IMAGE`
+
+`copa patch -r vllm-report.json -i $IMAGE --timeout 90m`
+
+We did that on each image - and the upstream images for the app container. 
+
+we got the 18 or so critical and high to zero. 
+
+containers/docker-compose.stage.yml references the scanned containers. 
+
+`docker compose -f containers/docker-compose.stage.yml up`
+
+
+# old notes / manual / v0
+
+per
+
+https://www.trmc.osd.mil/bitbucket/projects/JMIE/repos/data-dept/browse/docker/security.md
+
 `pip install trivy`
 
 or use docker: 
@@ -88,4 +118,6 @@ Trivy maps Red Hat's "Impact" metric to severity. If a CVE is high in NVD but lo
 # actually mitigating the high and critical findings
 
 I'm used to doing this in Ubunutu, RHEL is different enough I need to go back to first principles to find the best way....
+
+
 

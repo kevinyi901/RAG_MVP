@@ -2,6 +2,7 @@
 # Can pre-download models for air-gapped deployment
 
 FROM vllm/vllm-openai:latest
+#FROM vllm/vllm-openai:latest-patched
 
 # Set model directory
 ENV MODEL_DIR=/models

@@ -1,7 +1,11 @@
 # Containerfile for RAG Application
 # Base: Python 3.12.11 with table extraction support
 
-FROM python:3.12.11-slim
+#FROM python:3.12.11-slim
+# scanned and fixed upstream, saved locally
+# re-built w/ local upstream patch
+# docker build -t python.app -f ./containers/Containerfile.app --pull=false .
+FROM python:3.12.11-slim-patched
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
