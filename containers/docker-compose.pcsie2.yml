@@ -23,6 +23,8 @@ services:
   vllm:
     image: repo.pcsie2.jmie.mil/tracklab/rag-mvp:vllm-openai-latest-patched
     container_name: rag-vllm
+    environment:
+      - TIKTOKEN_ENCODINGS_BASE=/models/cache/tiktoken/
     volumes:
       - ../models:/models:ro
     ports:
@@ -57,6 +59,8 @@ services:
   vllm-mistral:
     image: repo.pcsie2.jmie.mil/tracklab/rag-mvp:vllm-openai-latest-patched
     container_name: rag-vllm-mistral
+      environment:
+      - TIKTOKEN_ENCODINGS_BASE=/models/cache/tiktoken/
     volumes:
       - ../models:/models:ro
     ports:
