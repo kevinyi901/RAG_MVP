@@ -14,7 +14,7 @@ class EmbeddingService:
     ):
         self.model_name_or_path = model_name_or_path or os.getenv(
             "EMBEDDING_MODEL_PATH",
-            os.getenv("EMBEDDING_MODEL", "nomic-ai/nomic-embed-text-v1.5")
+            os.getenv("EMBEDDING_MODEL", "nomic-embed-text-v1.5")
         )
         self._model = None
 
@@ -23,7 +23,7 @@ class EmbeddingService:
         """Lazy initialization of sentence-transformers model."""
         if self._model is None:
             from sentence_transformers import SentenceTransformer
-            self._model = SentenceTransformer(self.model_name_or_path, trust_remote_code=True)
+            self._model = SentenceTransformer(self.model_name_or_path, local_files_only=True, trust_remote_code=True)
         return self._model
 
     def embed_text(self, text: str) -> List[float]:
