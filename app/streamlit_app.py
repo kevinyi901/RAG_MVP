@@ -55,6 +55,7 @@ def upload_document(file, extract_tables=True):
         r.raise_for_status()
         return r.json()
     except Exception as e:
+        st.exception(e)
         return {"error": str(e)}
 
 

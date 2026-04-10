@@ -64,6 +64,14 @@ download_quantized() {
     echo "Downloading mistral-7b-awq (AWQ 4-bit, ~4GB)..."
     python3 -c "from huggingface_hub import snapshot_download; snapshot_download('TheBloke/Mistral-7B-Instruct-v0.2-AWQ', local_dir='${MODELS_DIR}/mistral-7b-awq', local_dir_use_symlinks=False)"
     echo "✓ mistral-7b-awq"
+
+    ## let's also get new nvidia/Gemma-4-31B-IT-NVFP4
+
+    echo "Downloading  nvidia/Gemma-4-31B-IT-NVFP4.."
+    python3 -c "from huggingface_hub import snapshot_download; snapshot_download('nvidia/Gemma-4-31B-IT-NVFP4', local_dir='${MODELS_DIR}/Gemma-4-31B-NVFP4', local_dir_use_symlinks=False)"
+    echo "✓ gemma4-31b-NVFP4"
+
+
 }
 
 # Main
