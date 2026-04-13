@@ -379,17 +379,41 @@ User Query: {question}"""
         chain_of_thought = ""
         in_thinking = False
 
+        import base64
+        image_payloads = []
+        if "gemma-4" in model_to_use.lower():
+            for chunk in reranked_chunks:
+                for img_path in chunk.get('metadata', {}).get('image_paths', []):
+                    if os.path.exists(img_path):
+                        with open(img_path, "rb") as bf:
+                            encoded = base64.b64encode(bf.read()).decode("utf-8")
+                            image_payloads.append(
+                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encoded}"}}
+                            )
+
+        if "gemma-4" in model_to_use.lower() and image_payloads:
+            request_url = f"{self._get_host_for_model(model_to_use)}/v1/chat/completions"
+            request_json = {
+                "model": model_to_use,
+                "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}] + image_payloads}],
+                "stream": True,
+                "max_tokens": 4096
+            }
+        else:
+            request_url = f"{self._get_host_for_model(model_to_use)}/v1/completions"
+            request_json = {
+                "model": model_to_use,
+                "prompt": prompt,
+                "stream": True,
+                "max_tokens": 4096
+            }
+
         try:
             with httpx.Client(timeout=300.0) as client:
                 with client.stream(
                     "POST",
-                    f"{self._get_host_for_model(model_to_use)}/v1/completions",
-                    json={
-                        "model": model_to_use,
-                        "prompt": prompt,
-                        "stream": True,
-                        "max_tokens": 4096
-                    }
+                    request_url,
+                    json=request_json
                 ) as response:
                     response.raise_for_status()
                     for line in response.iter_lines():
@@ -399,7 +423,15 @@ User Query: {question}"""
                         if data_str.strip() == "[DONE]":
                             break
                         data = json.loads(data_str)
-                        token = data["choices"][0].get("text", "")
+                        
+                        if "messages" in request_json:
+                            # Parse chat completion delta format
+                            choice = data["choices"][0]
+                            token = choice.get("delta", {}).get("content", "")
+                        else:
+                            # Parse standard completion format
+                            token = data["choices"][0].get("text", "")
+                            
                         if token:
                             full_response += token
 

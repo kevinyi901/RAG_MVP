@@ -72,7 +72,6 @@ services:
       - EMBEDDING_MODEL_PATH=/models/embedding/nomic-embed-text-v1.5/
       - EMBEDDING_MODEL=nomic-embed-text-v1.5
       - LLM_MODEL=gpt-oss-20b
-      - TIKTOKEN_ENCODINGS_BASE=/models/cache/tiktoken/
     depends_on:
       postgres:
         condition: service_healthy

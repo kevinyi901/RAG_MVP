@@ -17,9 +17,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Optional: Download models at build time
 # Uncomment the following lines to bake models into the image (larger image size)
+# this is done manually for initial delivery, as we put the models in a seperate container. 
+
 # RUN pip install huggingface-hub && \
 #     huggingface-cli download gpt-oss/gpt-oss-20b --local-dir /models/gpt-oss-20b && \
 #     huggingface-cli download mistralai/Mistral-7B-Instruct-v0.2 --local-dir /models/mistral-7b
+
+# needed for Gemma
+RUN pip install --upgrade transformers mistral-common
+
+
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \

@@ -12,6 +12,12 @@ from pypdf import PdfReader
 # DOCX processing
 from docx import Document as DocxDocument
 
+# PPTX processing
+from pptx import Presentation
+
+# Image processing
+from PIL import Image
+
 # Table extraction (optional)
 try:
     import tabula
@@ -35,7 +41,7 @@ class LoadedDocument:
 class DocumentLoader:
     """Load and extract text from various document formats."""
 
-    SUPPORTED_EXTENSIONS = {'.pdf', '.txt', '.md', '.docx', '.doc'}
+    SUPPORTED_EXTENSIONS = {'.pdf', '.txt', '.md', '.docx', '.doc', '.pptx', '.png', '.jpg', '.jpeg'}
 
     def __init__(self):
         pass
@@ -75,6 +81,10 @@ class DocumentLoader:
             return self._load_text(content, filename, file_type, file_size)
         elif file_type in ('.docx', '.doc'):
             return self._load_docx(content, filename, file_size)
+        elif file_type == '.pptx':
+            return self._load_pptx(content, filename, file_size)
+        elif file_type in ('.png', '.jpg', '.jpeg'):
+            return self._load_image(content, filename, file_type, file_size)
         else:
             raise ValueError(f"Unsupported file type: {file_type}")
 
@@ -89,11 +99,20 @@ class DocumentLoader:
 
             # Try to extract section title from first line
             section_title = self._extract_section_title(page_text)
+            
+            # Simple extraction of images from PDF using pypdf if they exist
+            images = []
+            try:
+                for img_obj in page.images:
+                    images.append(img_obj.data)
+            except Exception:
+                pass
 
             pages.append({
                 "page_number": page_num,
                 "content": page_text,
-                "section_title": section_title
+                "section_title": section_title,
+                "images": images
             })
             full_text.append(page_text)
 
@@ -165,6 +184,64 @@ class DocumentLoader:
             pages=pages
         )
 
+    def _load_pptx(self, content: bytes, filename: str, file_size: int) -> LoadedDocument:
+        """Load a PPTX document."""
+        prs = Presentation(io.BytesIO(content))
+        pages = []
+        full_text = []
+
+        for i, slide in enumerate(prs.slides, 1):
+            slide_text = []
+            slide_images = []
+            
+            for shape in slide.shapes:
+                if hasattr(shape, "text"):
+                    slide_text.append(shape.text.strip())
+                elif shape.shape_type == 13: # 13 corresponds to msoPicture
+                    # Extract image
+                    try:
+                        image = shape.image
+                        image_bytes = image.blob
+                        slide_images.append(image_bytes)
+                    except Exception:
+                        pass
+                        
+            page_content = "\\n".join(t for t in slide_text if t)
+            section_title = self._extract_section_title(page_content)
+            
+            pages.append({
+                "page_number": i,
+                "content": page_content,
+                "section_title": section_title,
+                "images": slide_images
+            })
+            full_text.append(page_content)
+
+        return LoadedDocument(
+            filename=filename,
+            file_type="pptx",
+            file_size=file_size,
+            page_count=len(prs.slides),
+            content="\\n\\n".join(full_text),
+            pages=pages
+        )
+
+    def _load_image(self, content: bytes, filename: str, file_type: str, file_size: int) -> LoadedDocument:
+        """Load an Image as a document."""
+        return LoadedDocument(
+            filename=filename,
+            file_type=file_type.lstrip('.'),
+            file_size=file_size,
+            page_count=1,
+            content=f"[Image File: {filename}]",
+            pages=[{
+                "page_number": 1,
+                "content": f"[Image content for {filename}]",
+                "section_title": None,
+                "images": [content]
+            }]
+        )
+
     def _extract_section_title(self, text: str, max_length: int = 100) -> Optional[str]:
         """Extract a potential section title from text."""
         if not text:
@@ -218,10 +295,19 @@ class EnhancedDocumentLoader(DocumentLoader):
 
             section_title = self._extract_section_title(page_text)
 
+            # Simple extraction of images from PDF using pypdf if they exist
+            images = []
+            try:
+                for img_obj in page.images:
+                    images.append(img_obj.data)
+            except Exception:
+                pass
+
             pages.append({
                 "page_number": page_num,
                 "content": page_text,
-                "section_title": section_title
+                "section_title": section_title,
+                "images": images
             })
             full_text.append(page_text)
 

@@ -190,7 +190,10 @@ class TextChunker:
                 text=page.get('content', ''),
                 page_number=page.get('page_number'),
                 section_title=page.get('section_title'),
-                metadata={'original_page': page.get('page_number')}
+                metadata={
+                    'original_page': page.get('page_number'),
+                    'images': page.get('images', [])
+                }
             )
 
             # Update global index

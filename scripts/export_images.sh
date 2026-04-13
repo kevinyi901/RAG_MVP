@@ -70,8 +70,8 @@ if [ ! -d "${PROJECT_DIR}/models/gpt-oss-20b" ]; then
     MISSING=1
 fi
 
-if [ ! -d "${PROJECT_DIR}/models/mistral-7b-awq" ]; then
-    echo "  MISSING: models/mistral-7b-awq (run download_for_airgap.sh first)"
+if [ ! -d "${PROJECT_DIR}/models/Gemma-4-31B-NVFP4" ]; then
+    echo "  MISSING: models/Gemma-4-31B-NVFP4 (run download_for_airgap.sh first)"
     MISSING=1
 fi
 
@@ -148,12 +148,12 @@ else
     echo "  SKIPPED: gpt-oss-20b not found"
 fi
 
-if [ -d "${PROJECT_DIR}/models/mistral-7b-awq" ]; then
-    echo "Copying mistral-7b-awq..."
-    cp -r "${PROJECT_DIR}/models/mistral-7b-awq" "${STAGING_DIR}/models/"
-    echo "  $(du -sh "${STAGING_DIR}/models/mistral-7b-awq" | cut -f1)"
+if [ -d "${PROJECT_DIR}/models/Gemma-4-31B-NVFP4" ]; then
+    echo "Copying Gemma-4-31B-NVFP4..."
+    cp -r "${PROJECT_DIR}/models/Gemma-4-31B-NVFP4" "${STAGING_DIR}/models/"
+    echo "  $(du -sh "${STAGING_DIR}/models/Gemma-4-31B-NVFP4" | cut -f1)"
 else
-    echo "  SKIPPED: mistral-7b-awq not found"
+    echo "  SKIPPED: Gemma-4-31B-NVFP4 not found"
 fi
 
 if [ -d "${PROJECT_DIR}/models/embedding" ]; then

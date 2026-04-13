@@ -14,8 +14,8 @@ MODE="${1:-full}"
 if [ "$MODE" != "full" ] && [ "$MODE" != "quantized" ] && [ "$MODE" != "both" ]; then
     echo "Usage: $0 [full|quantized|both]"
     echo ""
-    echo "  full      - Download gpt-oss-20b + mistral-7b-AWQ (~45GB)"
-    echo "  quantized - Download gpt-oss-20b + mistral-7b-AWQ (~45GB)"
+    echo "  full      - Download gpt-oss-20b + Gemma-4-31B-NVFP4"
+    echo "  quantized - Download gpt-oss-20b + Gemma-4-31B-NVFP4"
     echo "  both      - Download all model variants"
     echo ""
     echo "For A40 (48GB VRAM): Use 'full'"
@@ -44,9 +44,9 @@ download_full() {
     python3 -c "from huggingface_hub import snapshot_download; snapshot_download('openai/gpt-oss-20b', local_dir='${MODELS_DIR}/gpt-oss-20b', local_dir_use_symlinks=False)"
     echo "✓ gpt-oss-20b"
 
-    echo "Downloading mistral-7b-awq (AWQ 4-bit, ~4GB)..."
-    python3 -c "from huggingface_hub import snapshot_download; snapshot_download('TheBloke/Mistral-7B-Instruct-v0.2-AWQ', local_dir='${MODELS_DIR}/mistral-7b-awq', local_dir_use_symlinks=False)"
-    echo "✓ mistral-7b-awq"
+    echo "Downloading Gemma-4-31B-NVFP4..."
+    python3 -c "from huggingface_hub import snapshot_download; snapshot_download('nvidia/Gemma-4-31B-IT-NVFP4', local_dir='${MODELS_DIR}/Gemma-4-31B-NVFP4', local_dir_use_symlinks=False)"
+    echo "✓ Gemma-4-31B-NVFP4"
 }
 
 # Download quantized models
@@ -61,17 +61,9 @@ download_quantized() {
     python3 -c "from huggingface_hub import snapshot_download; snapshot_download('openai/gpt-oss-20b', local_dir='${MODELS_DIR}/gpt-oss-20b', local_dir_use_symlinks=False)"
     echo "✓ gpt-oss-20b"
 
-    echo "Downloading mistral-7b-awq (AWQ 4-bit, ~4GB)..."
-    python3 -c "from huggingface_hub import snapshot_download; snapshot_download('TheBloke/Mistral-7B-Instruct-v0.2-AWQ', local_dir='${MODELS_DIR}/mistral-7b-awq', local_dir_use_symlinks=False)"
-    echo "✓ mistral-7b-awq"
-
-    ## let's also get new nvidia/Gemma-4-31B-IT-NVFP4
-
-    echo "Downloading  nvidia/Gemma-4-31B-IT-NVFP4.."
+    echo "Downloading Gemma-4-31B-NVFP4..."
     python3 -c "from huggingface_hub import snapshot_download; snapshot_download('nvidia/Gemma-4-31B-IT-NVFP4', local_dir='${MODELS_DIR}/Gemma-4-31B-NVFP4', local_dir_use_symlinks=False)"
-    echo "✓ gemma4-31b-NVFP4"
-
-
+    echo "✓ Gemma-4-31B-NVFP4"
 }
 
 # Main

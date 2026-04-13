@@ -16,16 +16,13 @@ load_dotenv()
 from rag import EmbeddingService, Retriever, SemanticRanker, RAGPipeline
 from utils import DocumentLoader, EnhancedDocumentLoader, TextChunker
 
-import logging
-import traceback
-from fastapi import Request
-from fastapi.responses import JSONResponse
 
 # Global instances
 embedding_service: EmbeddingService = None
 retriever: Retriever = None
 ranker: SemanticRanker = None
 pipeline: RAGPipeline = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -53,28 +50,6 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
-
-## improve logging
-
-# Configure logging to output to stdout (so docker logs can see it)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger("rag_api")
-
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    # This captures the full stack trace
-    error_trace = traceback.format_exc()
-    logger.error(f"Unhandled error: {exc}\n{error_trace}")
-    
-    return JSONResponse(
-        status_code=500,
-        content={"detail": str(exc), "traceback": error_trace if os.getenv("DEBUG") else None},
-    )
-
-
 
 # CORS middleware
 app.add_middleware(
@@ -219,10 +194,8 @@ async def upload_document(
     """Upload and process a document with configurable options."""
     try:
         # Read file content
-        logger.info(f"Starting upload for file: {file.filename}")
         content = await file.read()
         filename = file.filename
-        logger.info(f"File read complete. Size: {len(content)} bytes")
 
         # Choose loader based on options
         if extract_tables:
@@ -231,7 +204,6 @@ async def upload_document(
             loader = DocumentLoader()
 
         doc = loader.load_bytes(content, filename)
-        logger.info("Document loading/parsing successful")
 
         # Store document metadata
         document_id = retriever.store_document(
@@ -240,14 +212,32 @@ async def upload_document(
             file_size=doc.file_size,
             page_count=doc.page_count
         )
-        logger.info("Document stored successfully")  
+
         # Chunk document (simple 500-token / 100-overlap)
         chunker = TextChunker()
         chunks = chunker.chunk_document(doc.pages)
-        logger.info(f"Chunking complete. Created {len(chunks)} chunks")
 
         # Embed and store each chunk
-        for i, chunk in enumerate(chunks):
+        img_dir = os.path.join(os.path.dirname(__file__), "..", "uploads", "images", str(document_id))
+        
+        for chunk in chunks:
+            images = chunk.metadata.get('images', [])
+            image_paths = []
+            
+            if images:
+                os.makedirs(img_dir, exist_ok=True)
+                for idx, img_bytes in enumerate(images):
+                    if img_bytes:
+                        path = os.path.join(img_dir, f"chunk_{chunk.chunk_index}_{idx}.png")
+                        with open(path, "wb") as f:
+                            f.write(img_bytes)
+                        image_paths.append(path)
+                        
+            # Replace the bytes with file paths in metadata
+            chunk.metadata['image_paths'] = image_paths
+            if 'images' in chunk.metadata:
+                del chunk.metadata['images']
+
             embedding = embedding_service.embed_text(chunk.content)
             retriever.store_chunk(
                 document_id=document_id,
@@ -258,8 +248,6 @@ async def upload_document(
                 section_title=chunk.section_title,
                 metadata=chunk.metadata
             )
-            if i % 10 == 0:
-                logger.info(f"Processed {i}/{len(chunks)} chunks...")
 
         return {
             "status": "success",
@@ -271,10 +259,8 @@ async def upload_document(
             }
         }
     except ValueError as e:
-        logger.error(f"Upload failed: 400 {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Upload failed: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

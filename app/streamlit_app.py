@@ -10,7 +10,7 @@ from typing import Optional, List
 # Config
 # -------------------------------------------------------------------
 API_URL = "http://api:8000"
-AVAILABLE_MODELS = ["gpt-oss-20b", "mistral-7b"]
+AVAILABLE_MODELS = ["gpt-oss-20b", "Gemma-4-31B-NVFP4"]
 
 # -------------------------------------------------------------------
 # Session State
@@ -55,7 +55,6 @@ def upload_document(file, extract_tables=True):
         r.raise_for_status()
         return r.json()
     except Exception as e:
-        st.exception(e)
         return {"error": str(e)}
 
 
@@ -109,7 +108,7 @@ def render_sidebar():
         with st.expander("➕ Add Document", expanded=False):
             uploaded_file = st.file_uploader(
                 "Upload",
-                type=["pdf", "txt", "md", "docx"],
+                type=["pdf", "txt", "md", "docx", "pptx", "png", "jpg"],
                 label_visibility="collapsed",
                 key="doc_uploader"
             )

@@ -3,7 +3,7 @@
 # Run this on an internet-connected machine before export_images.sh.
 #
 # Downloads:
-#   1. LLM models (gpt-oss-20b + mistral-7b-awq)
+#   1. LLM models (gpt-oss-20b + Gemma-4-31B-NVFP4)
 #   2. Embedding model (nomic-ai/nomic-embed-text-v1.5)
 #   3. Python wheels (all pip dependencies for offline install)
 #   4. Container images (vllm, pgvector, app build)
